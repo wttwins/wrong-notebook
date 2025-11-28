@@ -41,7 +41,7 @@ export default function Home() {
       setStep("review");
     } catch (error) {
       console.error(error);
-      alert("Failed to analyze image");
+      alert(language === 'zh' ? '分析失败' : 'Analysis failed');
     } finally {
       setAnalyzing(false);
     }
@@ -54,7 +54,7 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...finalData,
-          originalImageUrl: "placeholder-url", // TODO: Implement real upload
+          originalImageUrl: currentImage || "",
         }),
       });
 
@@ -62,13 +62,13 @@ export default function Home() {
         setStep("upload");
         setParsedData(null);
         setCurrentImage(null);
-        alert("Saved successfully!");
+        alert(language === 'zh' ? '保存成功！' : 'Saved successfully!');
       } else {
-        alert("Failed to save");
+        alert(language === 'zh' ? '保存失败' : 'Failed to save');
       }
     } catch (error) {
       console.error(error);
-      alert("Error saving");
+      alert(language === 'zh' ? '保存时出错' : 'Error saving');
     }
   };
 

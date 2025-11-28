@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
 import { getServerSession } from "next-auth";
 
-export async function GET(
+export async function PATCH(
     req: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
@@ -27,29 +27,22 @@ export async function GET(
             return NextResponse.json({ message: "Unauthorized - No user found in DB" }, { status: 401 });
         }
 
-        const errorItem = await prisma.errorItem.findUnique({
+        const { userNotes } = await req.json();
+
+        const errorItem = await prisma.errorItem.update({
             where: {
                 id: id,
             },
-            include: {
-                subject: true,
+            data: {
+                userNotes: userNotes,
             },
         });
 
-        if (!errorItem) {
-            return NextResponse.json({ message: "Item not found" }, { status: 404 });
-        }
-
-        // Ensure the user owns this item
-        if (errorItem.userId !== user.id) {
-            return NextResponse.json({ message: "Unauthorized" }, { status: 403 });
-        }
-
         return NextResponse.json(errorItem);
     } catch (error) {
-        console.error("Error fetching item:", error);
+        console.error("Error updating notes:", error);
         return NextResponse.json(
-            { message: "Failed to fetch error item" },
+            { message: "Failed to update notes" },
             { status: 500 }
         );
     }

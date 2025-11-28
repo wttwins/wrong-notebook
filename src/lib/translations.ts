@@ -2,6 +2,13 @@ export type Language = 'zh' | 'en';
 
 export const translations = {
     en: {
+        common: {
+            loading: "Loading...",
+            error: "Error",
+            success: "Success",
+            save: "Save",
+            cancel: "Cancel",
+        },
         app: {
             title: "Smart Error Notebook",
             subtitle: "Upload your wrong answers, let AI analyze them, and master your weak points.",
@@ -46,13 +53,18 @@ export const translations = {
         detail: {
             title: "Error Detail",
             question: "Question",
+            originalProblem: "Original Problem",
             yourNotes: "Your Answer / Notes",
             noNotes: "No notes added yet.",
+            notFound: "Item not found",
+            editNotes: "Edit",
+            notesPlaceholder: "Enter your notes...",
             correctAnswer: "Correct Answer",
             analysis: "Analysis",
             markMastered: "Mark as Mastered",
             mastered: "Mastered",
             practice: "Practice Similar",
+            delete: "Delete",
         },
         practice: {
             title: "Smart Practice",
@@ -61,13 +73,30 @@ export const translations = {
             generating: "Generating AI Question...",
             regenerate: "Regenerate",
             practiceProblem: "Practice Problem",
+            yourAnswer: "Your Answer",
+            answerPlaceholder: "Enter your answer...",
+            notesPlaceholder: "Record your thinking process (optional)...",
+            submitAnswer: "Submit Answer",
+            correct: "Correct!",
+            correctMessage: "Great job, keep it up!",
+            incorrect: "Incorrect",
+            incorrectMessage: "Review the analysis and try again!",
+            yourNotes: "Your Notes:",
             checkAnswer: "Check Answer",
             hideAnswer: "Hide Answer",
             correctAnswer: "Correct Answer",
             detailedAnalysis: "Detailed Analysis",
+            invalidRequest: "Invalid Request",
         }
     },
     zh: {
+        common: {
+            loading: "加载中...",
+            error: "错误",
+            success: "成功",
+            save: "保存",
+            cancel: "取消",
+        },
         app: {
             title: "智能错题本",
             subtitle: "上传错题，AI 智能解析，助你攻克薄弱点。",
@@ -112,13 +141,18 @@ export const translations = {
         detail: {
             title: "错题详情",
             question: "题目",
+            originalProblem: "原始问题",
             yourNotes: "你的笔记 / 答案",
             noNotes: "暂无笔记",
+            notFound: "未找到该错题",
+            editNotes: "编辑",
+            notesPlaceholder: "输入你的笔记...",
             correctAnswer: "参考答案",
             analysis: "解析",
             markMastered: "标记为已掌握",
             mastered: "已掌握",
-            practice: "举一反三 (生成同类题)",
+            practice: "举一反三",
+            delete: "删除",
         },
         practice: {
             title: "智能练习",
@@ -127,10 +161,20 @@ export const translations = {
             generating: "AI 正在出题...",
             regenerate: "重新生成",
             practiceProblem: "练习题",
+            yourAnswer: "你的答案",
+            answerPlaceholder: "输入你的答案...",
+            notesPlaceholder: "记录解题思路（可选）...",
+            submitAnswer: "提交答案",
+            correct: "回答正确！",
+            correctMessage: "太棒了，继续保持！",
+            incorrect: "答案有误",
+            incorrectMessage: "再看看解析，加油！",
+            yourNotes: "你的笔记：",
             checkAnswer: "查看答案",
             hideAnswer: "隐藏答案",
             correctAnswer: "参考答案",
             detailedAnalysis: "详细解析",
+            invalidRequest: "无效请求",
         }
     }
 };

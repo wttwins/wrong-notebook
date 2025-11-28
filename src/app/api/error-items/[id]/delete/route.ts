@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
 import { getServerSession } from "next-auth";
 
-export async function GET(
+export async function DELETE(
     req: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
@@ -27,29 +27,29 @@ export async function GET(
             return NextResponse.json({ message: "Unauthorized - No user found in DB" }, { status: 401 });
         }
 
+        // Verify ownership before deletion
         const errorItem = await prisma.errorItem.findUnique({
-            where: {
-                id: id,
-            },
-            include: {
-                subject: true,
-            },
+            where: { id: id },
         });
 
         if (!errorItem) {
             return NextResponse.json({ message: "Item not found" }, { status: 404 });
         }
 
-        // Ensure the user owns this item
         if (errorItem.userId !== user.id) {
             return NextResponse.json({ message: "Unauthorized" }, { status: 403 });
         }
 
-        return NextResponse.json(errorItem);
+        // Delete the item
+        await prisma.errorItem.delete({
+            where: { id: id },
+        });
+
+        return NextResponse.json({ message: "Deleted successfully" });
     } catch (error) {
-        console.error("Error fetching item:", error);
+        console.error("Error deleting item:", error);
         return NextResponse.json(
-            { message: "Failed to fetch error item" },
+            { message: "Failed to delete error item" },
             { status: 500 }
         );
     }
