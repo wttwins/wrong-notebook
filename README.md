@@ -37,6 +37,7 @@ docker run -d -p 3000:3000 --name wrong-notebook \
   -e NEXTAUTH_SECRET="your_secret_key" \
   -p 3000:3000 \
   -v $(pwd)/data:/app/data \
+  -v $(pwd)/config:/app/config \
   ghcr.io/wttwins/wrong-notebook
 ```
 
@@ -113,6 +114,7 @@ cp .env.example .env
 
 ```bash
 npx prisma migrate dev
+npx prisma db seed
 ```
 
 #### 6. 管理员账户
