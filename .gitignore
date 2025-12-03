@@ -37,11 +37,11 @@ yarn-error.log*
 .vercel
 
 # typescript
-*.tsbuildinfo
+*.tsbuildinfoconfig
 next-env.d.ts
 
 /src/generated/prisma
 /prisma/dev.db
 
 # App config (contains secrets)
-app-config.json
+/config/app-config.json
