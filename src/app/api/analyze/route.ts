@@ -113,9 +113,28 @@ export async function POST(req: Request) {
         console.error("[API] Analysis error details:", error);
         console.error("[API] Error message:", error.message);
         console.error("[API] Error stack:", error.stack);
+
+        // 返回具体的错误类型，便于前端显示详细提示
+        let errorMessage = error.message || "Failed to analyze image";
+        let statusCode = 500;
+
+        // 识别特定错误类型
+        if (error.message && (
+            error.message === 'AI_CONNECTION_FAILED' ||
+            error.message === 'AI_RESPONSE_ERROR' ||
+            error.message === 'AI_AUTH_ERROR' ||
+            error.message === 'AI_UNKNOWN_ERROR'
+        )) {
+            // 直接传递 AI Provider 定义的错误类型
+            errorMessage = error.message;
+        } else if (error.message?.includes('Zod') || error.message?.includes('validate')) {
+            // Zod 验证错误
+            errorMessage = 'AI_RESPONSE_ERROR';
+        }
+
         return NextResponse.json(
-            { message: "Failed to analyze image", error: error.message },
-            { status: 500 }
+            { message: errorMessage, error: error.message },
+            { status: statusCode }
         );
     }
 }

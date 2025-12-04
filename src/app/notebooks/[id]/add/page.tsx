@@ -87,10 +87,31 @@ export default function AddErrorPage() {
             setParsedData(data);
             setStep("review");
             setAnalysisStep('idle');
-        } catch (error) {
-            console.error(error);
-            alert(t.common.messages?.analysisFailed || 'Analysis failed');
+        } catch (error: any) {
+            console.error('[AddError] Analysis error:', error);
             setAnalysisStep('idle');
+
+            // 解析详细错误信息
+            let errorMessage = t.common.messages?.analysisFailed || 'Analysis failed';
+
+            if (error?.message) {
+                // 检查是否是已知的 AI 错误类型
+                const errorType = error.message;
+                if (t.errors && errorType in t.errors) {
+                    errorMessage = t.errors[errorType as keyof typeof t.errors];
+                } else if (error.message === 'Network error' || error.message.includes('fetch')) {
+                    errorMessage = t.errors?.AI_CONNECTION_FAILED || '网络连接失败';
+                } else if (error.message.includes('parse') || error.message.includes('JSON') || error.message.includes('validate')) {
+                    errorMessage = t.errors?.AI_RESPONSE_ERROR || 'AI 解析异常';
+                } else if (error.message.includes('auth') || error.message.includes('API')) {
+                    errorMessage = t.errors?.AI_AUTH_ERROR || '认证失败';
+                } else {
+                    // 如果有具体错误消息，显示它
+                    errorMessage = error.message;
+                }
+            }
+
+            alert(errorMessage);
         }
     };
 
