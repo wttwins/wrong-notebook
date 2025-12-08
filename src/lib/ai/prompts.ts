@@ -160,7 +160,7 @@ export function generateSimilarQuestionPrompt(
   options?: PromptOptions
 ): string {
   const langInstruction = language === 'zh'
-    ? "IMPORTANT: Generate the new question in Simplified Chinese. The new question MUST use the SAME LANGUAGE as the original question."
+    ? "IMPORTANT: Provide the output based on the 'Original Question' language. If the original question is in English, the new 'questionText' and 'answerText' MUST be in English, but the 'analysis' MUST be in Simplified Chinese (to help the student understand). If the original is in Chinese, everything MUST be in Simplified Chinese."
     : "Please ensure the generated question is in English.";
 
   const difficultyInstruction = {
