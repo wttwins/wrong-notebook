@@ -15,6 +15,10 @@ export interface AppConfig {
         baseUrl?: string;
         model?: string;
     };
+    prompts?: {
+        analyze?: string;
+        similar?: string;
+    };
 }
 
 const DEFAULT_CONFIG: AppConfig = {
@@ -29,6 +33,10 @@ const DEFAULT_CONFIG: AppConfig = {
         baseUrl: process.env.GEMINI_BASE_URL,
         model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
     },
+    prompts: {
+        analyze: '',
+        similar: '',
+    },
 };
 
 export function getAppConfig(): AppConfig {
@@ -42,6 +50,7 @@ export function getAppConfig(): AppConfig {
                 ...userConfig,
                 openai: { ...DEFAULT_CONFIG.openai, ...userConfig.openai },
                 gemini: { ...DEFAULT_CONFIG.gemini, ...userConfig.gemini },
+                prompts: { ...DEFAULT_CONFIG.prompts, ...userConfig.prompts },
             };
         } catch (error) {
             console.error("Failed to read config file:", error);
@@ -58,6 +67,7 @@ export function updateAppConfig(newConfig: Partial<AppConfig>) {
         ...newConfig,
         openai: { ...currentConfig.openai, ...newConfig.openai },
         gemini: { ...currentConfig.gemini, ...newConfig.gemini },
+        prompts: { ...currentConfig.prompts, ...newConfig.prompts },
     };
 
     try {

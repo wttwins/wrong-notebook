@@ -28,6 +28,8 @@ import { UserManagement } from "@/components/admin/user-management";
 import { apiClient } from "@/lib/api-client";
 import { AppConfig, UserProfile, UpdateUserProfileRequest } from "@/types/api";
 import { ModelSelector } from "@/components/ui/model-selector";
+import { PromptSettings } from "@/components/settings/prompt-settings";
+import { MessageSquareText } from "lucide-react";
 
 interface ProfileFormState {
     name: string;
@@ -203,6 +205,16 @@ export function SettingsDialog() {
         }));
     };
 
+    const updatePrompts = (type: 'analyze' | 'similar', value: string) => {
+        setConfig(prev => ({
+            ...prev,
+            prompts: {
+                ...prev.prompts,
+                [type]: value
+            }
+        }));
+    };
+
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
@@ -220,7 +232,7 @@ export function SettingsDialog() {
                 </DialogHeader>
 
                 <Tabs defaultValue="general" className="w-full">
-                    <TabsList className={`grid w-full ${(session?.user as any)?.role === 'admin' ? 'grid-cols-5' : 'grid-cols-4'}`}>
+                    <TabsList className={`grid w-full ${(session?.user as any)?.role === 'admin' ? 'grid-cols-6' : 'grid-cols-5'}`}>
                         <TabsTrigger value="general">
                             <Languages className="h-4 w-4 mr-2" />
                             {language === 'zh' ? "通用" : "General"}
@@ -232,6 +244,10 @@ export function SettingsDialog() {
                         <TabsTrigger value="ai">
                             <Bot className="h-4 w-4 mr-2" />
                             {language === 'zh' ? "AI 提供商" : "AI Provider"}
+                        </TabsTrigger>
+                        <TabsTrigger value="prompts">
+                            <MessageSquareText className="h-4 w-4 mr-2" />
+                            {language === 'zh' ? "提示词" : "Prompts"}
                         </TabsTrigger>
                         {(session?.user as any)?.role === 'admin' && (
                             <TabsTrigger value="admin">
@@ -508,6 +524,15 @@ export function SettingsDialog() {
                                 </Button>
                             </div>
                         )}
+                    </TabsContent>
+
+                    {/* Prompts Tab */}
+                    <TabsContent value="prompts" className="space-y-4 py-4">
+                        <PromptSettings config={config} onUpdate={updatePrompts} />
+                        <Button onClick={handleSaveSettings} disabled={saving} className="w-full">
+                            {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            {language === 'zh' ? "保存提示词设置" : "Save Prompt Settings"}
+                        </Button>
                     </TabsContent>
 
                     {/* Admin Tab */}

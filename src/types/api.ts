@@ -109,6 +109,10 @@ export interface AppConfig {
         baseUrl?: string;
         model?: string;
     };
+    prompts?: {
+        analyze?: string;
+        similar?: string;
+    };
 }
 
 export interface AnalyticsData {

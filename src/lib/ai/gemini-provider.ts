@@ -3,6 +3,7 @@ import { AIService, ParsedQuestion, DifficultyLevel, AIConfig } from "./types";
 import { jsonrepair } from 'jsonrepair';
 import { generateAnalyzePrompt, generateSimilarQuestionPrompt } from './prompts';
 import { validateParsedQuestion, safeParseParsedQuestion } from './schema';
+import { getAppConfig } from '../config';
 
 export class GeminiProvider implements AIService {
     private genAI: GoogleGenerativeAI;
@@ -143,7 +144,10 @@ export class GeminiProvider implements AIService {
     }
 
     async analyzeImage(imageBase64: string, mimeType: string = "image/jpeg", language: 'zh' | 'en' = 'zh', grade?: 7 | 8 | 9 | null, subject?: string | null): Promise<ParsedQuestion> {
-        const prompt = generateAnalyzePrompt(language, grade, subject);
+        const config = getAppConfig();
+        const prompt = generateAnalyzePrompt(language, grade, subject, {
+            customTemplate: config.prompts?.analyze
+        });
 
         console.log("\n" + "=".repeat(80));
         console.log("[Gemini] 🔍 AI Image Analysis Request");
@@ -209,7 +213,10 @@ export class GeminiProvider implements AIService {
     }
 
     async generateSimilarQuestion(originalQuestion: string, knowledgePoints: string[], language: 'zh' | 'en' = 'zh', difficulty: DifficultyLevel = 'medium'): Promise<ParsedQuestion> {
-        const prompt = generateSimilarQuestionPrompt(language, originalQuestion, knowledgePoints, difficulty);
+        const config = getAppConfig();
+        const prompt = generateSimilarQuestionPrompt(language, originalQuestion, knowledgePoints, difficulty, {
+            customTemplate: config.prompts?.similar
+        });
 
         console.log("\n" + "=".repeat(80));
         console.log("[Gemini] 🎯 Generate Similar Question Request");

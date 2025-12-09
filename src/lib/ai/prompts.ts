@@ -13,6 +13,102 @@ export interface PromptOptions {
     subject: string;
     tags: string[];
   }[];
+  customTemplate?: string; // Custom template to override default
+}
+
+export const DEFAULT_ANALYZE_TEMPLATE = `【角色与核心任务 (ROLE AND CORE TASK)】
+你是一位世界顶尖的、经验丰富的、专业的跨学科考试分析专家（Interdisciplinary Exam Analysis Expert）。你的核心任务是极致准确地分析用户提供的考试题目图片，全面理解所有文本、图表和隐含约束，并提供一个完整、高度结构化且专业的 JSON 格式解决方案。
+
+{{language_instruction}}
+
+【核心输出字段要求 (OUTPUT FIELD REQUIREMENTS)】
+你的响应输出必须严格为一个有效的 JSON 对象（禁止任何 Markdown 代码块包裹），包含以下五个字段：
+
+1. "questionText": 题目的完整文本。必须使用 Markdown 格式提高可读性。所有数学公式和表达式必须使用 LaTeX 符号（行内：$formula$，块级：$$formula$$）。
+2. "answerText": 题目的正确答案。使用 Markdown 和 LaTeX 符号。
+3. "analysis": 解决问题的详细步骤解析。
+    * 必须使用简体中文。
+    * 使用 Markdown 格式（headings, lists, bold, etc.）提高清晰度。
+    * 所有数学公式和表达式必须使用 LaTeX 符号。
+    * 示例: "求解过程为 $x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$"
+4. "subject": 题目所属学科。必须严格从以下列表中选取一个："数学", "物理", "化学", "生物", "英语", "语文", "历史", "地理", "政治", "其他"。
+5. "knowledgePoints": 知识点数组。必须严格使用下方提供的标准列表中的精确词汇。
+
+【知识点标签列表（KNOWLEDGE POINT LIST）】
+{{knowledge_points_list}}
+
+【标签使用规则 (TAG RULES)】
+- 标签必须与题目实际考查的知识点精准匹配。
+- 每题最多 5 个标签。
+
+【!!! 关键格式与内容约束 (CRITICAL RULES) !!!】
+1. 语言一致性（CRITICAL）："questionText" 和 "answerText" 必须使用与原始题目图片完全相同的语言。
+2. JSON 纯净性（CRITICAL）：只返回一个有效的 JSON 对象，前后禁止添加任何文本或说明（如 "The final answer is..."）。
+3. 格式禁止（CRITICAL）：禁止将 JSON 对象包裹在任何 Markdown 代码块中。
+4. 纯文本内容提取 (CRITICAL): 必须只提取图片中**实际的文本和可转换为 LaTeX 的数学内容**。**严格禁止**在任何字段中输出**任何形式的图片引用、链接或视觉描述**，包括但不限于 HTML 的 <img>、Markdown 的 ![alt](url) 格式，或对图表、图形的文字描述（除非该描述本身就是题目文本的一部分）。**若遇无法用 LaTeX 表达的图表，必须用纯文本精确描述其关键特征，绝不能使用图片链接。**
+5. 多题处理：如果图片包含多个子问题（如 (1), (2), (3)），请将所有子问题纳入 "questionText" 字段。如果图片包含完全不相关的独立题目，则只专注于提取其中一题。
+
+【预期 JSON 格式 (EXPECTED JSON FORMAT)】
+{
+"questionText": "题目文本（使用 Markdown 和 LaTeX）",
+"answerText": "答案",
+"analysis": "详细解析",
+"subject": "数学",
+"knowledgePoints": ["知识点1", "知识点2"]
+}
+
+{{provider_hints}}`;
+
+export const DEFAULT_SIMILAR_TEMPLATE = `You are an expert AI tutor creating practice problems for middle school students.
+Create a NEW practice problem based on the following original question and knowledge points.
+
+DIFFICULTY LEVEL: {{difficulty_level}}
+{{difficulty_instruction}}
+
+{{language_instruction}}
+
+Original Question: "{{original_question}}"
+Knowledge Points: {{knowledge_points}}
+
+【核心输出字段要求 (OUTPUT FIELD REQUIREMENTS)】
+你的响应输出必须严格为一个有效的 JSON 对象（禁止任何 Markdown 代码块包裹），包含以下五个字段:
+1. "questionText": 题目的完整文本。必须使用 Markdown 格式提高可读性。所有数学公式和表达式必须使用 LaTeX 符号（行内：$formula$，块级：$$formula$$）。
+2. "answerText": 题目的正确答案。使用 Markdown 和 LaTeX 符号。
+3. "analysis": 解决问题的详细步骤解析。
+    * 必须使用简体中文。
+    * 使用 Markdown 格式（headings, lists, bold, etc.）提高清晰度。
+    * 所有数学公式和表达式必须使用 LaTeX 符号。
+    * 示例: "求解过程为 $x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}$"
+4. "subject": 题目所属学科。必须严格从以下列表中选取一个："数学", "物理", "化学", "生物", "英语", "语文", "历史", "地理", "政治", "其他"。
+5. "knowledgePoints": 知识点数组。必须严格使用下方提供的标准列表中的精确词汇。
+
+
+【!!! 关键格式与内容约束 (CRITICAL RULES) !!!】
+1. 语言一致性（CRITICAL）："questionText" 和 "answerText" 必须使用与原始题目图片完全相同的语言。
+2. JSON 纯净性（CRITICAL）：只返回一个有效的 JSON 对象，前后禁止添加任何文本或说明（如 "The final answer is..."）。
+3. 格式禁止（CRITICAL）：禁止将 JSON 对象包裹在任何 Markdown 代码块中。
+4. 纯文本内容提取 (CRITICAL): 必须只提取图片中**实际的文本和可转换为 LaTeX 的数学内容**。**严格禁止**在任何字段中输出**任何形式的图片引用、链接或视觉描述**，包括但不限于 HTML 的 <img>、Markdown 的 ![alt](url) 格式，或对图表、图形的文字描述（除非该描述本身就是题目文本的一部分）。**若遇无法用 LaTeX 表达的图表，必须用纯文本精确描述其关键特征，绝不能使用图片链接。**
+5. 多题处理：如果图片包含多个子问题（如 (1), (2), (3)），请将所有子问题纳入 "questionText" 字段。如果图片包含完全不相关的独立题目，则只专注于提取其中一题。
+
+
+**Expected JSON Format:**
+{
+  "questionText": "新问题的文本（如果是选择题，包含选项 A、B、C、D）",
+  "answerText": "正确答案",
+  "analysis": "详细解析",
+  "subject": "数学",
+  "knowledgePoints": ["知识点1", "知识点2"]
+}
+
+{{provider_hints}}`;
+
+/**
+ * Helper to replace placeholders in template
+ */
+function replaceVariables(template: string, variables: Record<string, string>): string {
+  return template.replace(/\{\{(\w+)\}\}/g, (match, key) => {
+    return variables[key] || "";
+  });
 }
 
 /**
@@ -55,7 +151,7 @@ export function generateAnalyzePrompt(
   options?: PromptOptions
 ): string {
   const langInstruction = language === 'zh'
-    ? "IMPORTANT: For the 'analysis' field, use Simplified Chinese. For 'questionText' and 'answerText', YOU MUST USE THE SAME LANGUAGE AS THE ORIGINAL QUESTION. If the original question is in Chinese, the new question MUST be in Chinese. If the original is in English, keep it in English."
+    ? "IMPORTANT: For the 'analysis' field, use Simplified Chinese. For 'questionText' and 'answerText', YOU MUST USE THE SAME LANGUAGE AS THE ORIGINAL QUESTION. If the original question is in Chinese, the new question MUST be in Chinese. If the original is in English, keep it in English. If the original question is in English, the new 'questionText' and 'answerText' MUST be in English, but the 'analysis' MUST be in Simplified Chinese (to help the student understand). "
     : "Please ensure all text fields are in English.";
 
   // 获取数学标签（根据年级累进）
@@ -84,7 +180,6 @@ ${mathTagsString}
 "语法", "词汇", "阅读理解", "完形填空", "写作", "听力", "翻译", "时态", "从句", "冠词", "介词", "动词短语", "固定搭配"`;
   } else {
     // 未知科目：显示所有标签让 AI 判断
-    // 未知科目：显示所有标签让 AI 判断
     tagsSection = `**数学标签 (Math Tags):**
 ${mathTagsString}
 
@@ -98,50 +193,13 @@ ${mathTagsString}
 "语法", "词汇", "阅读理解", "完形填空", "写作", "听力", "翻译"`;
   }
 
-  const basePrompt = `【角色与核心任务 (ROLE AND CORE TASK)】
-你是一位世界顶尖的、经验丰富的、专业的跨学科考试分析专家（Interdisciplinary Exam Analysis Expert）。你的核心任务是极致准确地分析用户提供的考试题目图片，全面理解所有文本、图表和隐含约束，并提供一个完整、高度结构化且专业的 JSON 格式解决方案。
+  const template = options?.customTemplate || DEFAULT_ANALYZE_TEMPLATE;
 
-${langInstruction}
-
-【核心输出字段要求 (OUTPUT FIELD REQUIREMENTS)】
-你的响应输出必须严格为一个有效的 JSON 对象（禁止任何 Markdown 代码块包裹），包含以下五个字段：
-
-1. "questionText": 题目的完整文本。必须使用 Markdown 格式提高可读性。所有数学公式和表达式必须使用 LaTeX 符号（行内：$formula$，块级：$$formula$$）。
-2. "answerText": 题目的正确答案。使用 Markdown 和 LaTeX 符号。
-3. "analysis": 解决问题的详细步骤解析。
-    * 必须使用简体中文。
-    * 使用 Markdown 格式（headings, lists, bold, etc.）提高清晰度。
-    * 所有数学公式和表达式必须使用 LaTeX 符号。
-    * 示例: "求解过程为 $x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}$"
-4. "subject": 题目所属学科。必须严格从以下列表中选取一个："数学", "物理", "化学", "生物", "英语", "语文", "历史", "地理", "政治", "其他"。
-5. "knowledgePoints": 知识点数组。必须严格使用下方提供的标准列表中的精确词汇。
-
-【知识点标签列表（KNOWLEDGE POINT LIST）】
-${tagsSection}
-
-【标签使用规则 (TAG RULES)】
-- 标签必须与题目实际考查的知识点精准匹配。
-- 每题最多 5 个标签。
-
-【!!! 关键格式与内容约束 (CRITICAL RULES) !!!】
-1. 语言一致性（CRITICAL）："questionText" 和 "answerText" 必须使用与原始题目图片完全相同的语言。
-2. JSON 纯净性（CRITICAL）：只返回一个有效的 JSON 对象，前后禁止添加任何文本或说明（如 "The final answer is..."）。
-3. 格式禁止（CRITICAL）：禁止将 JSON 对象包裹在任何 Markdown 代码块中。
-4. 纯文本内容提取 (CRITICAL): 必须只提取图片中**实际的文本和可转换为 LaTeX 的数学内容**。**严格禁止**在任何字段中输出**任何形式的图片引用、链接或视觉描述**，包括但不限于 HTML 的 <img>、Markdown 的 ![alt](url) 格式，或对图表、图形的文字描述（除非该描述本身就是题目文本的一部分）。**若遇无法用 LaTeX 表达的图表，必须用纯文本精确描述其关键特征，绝不能使用图片链接。**
-5. 多题处理：如果图片包含多个子问题（如 (1), (2), (3)），请将所有子问题纳入 "questionText" 字段。如果图片包含完全不相关的独立题目，则只专注于提取其中一题。
-
-【预期 JSON 格式 (EXPECTED JSON FORMAT)】
-{
-"questionText": "题目文本（使用 Markdown 和 LaTeX）",
-"answerText": "答案",
-"analysis": "详细解析",
-"subject": "数学",
-"knowledgePoints": ["知识点1", "知识点2"]
-}
-
-${options?.providerHints || ''}`;
-
-  return basePrompt.trim();
+  return replaceVariables(template, {
+    language_instruction: langInstruction,
+    knowledge_points_list: tagsSection,
+    provider_hints: options?.providerHints || ''
+  }).trim();
 }
 
 /**
@@ -170,38 +228,14 @@ export function generateSimilarQuestionPrompt(
     'harder': "Make the new question MUCH HARDER (Challenge Level). Require deeper understanding and multi-step reasoning."
   }[difficulty];
 
-  const basePrompt = `You are an expert AI tutor creating practice problems for middle school students.
-Create a NEW practice problem based on the following original question and knowledge points.
+  const template = options?.customTemplate || DEFAULT_SIMILAR_TEMPLATE;
 
-DIFFICULTY LEVEL: ${difficulty.toUpperCase()}
-${difficultyInstruction}
-
-${langInstruction}
-
-Original Question: "${originalQuestion}"
-Knowledge Points: ${knowledgePoints.join(", ")}
-
-Return the result in valid JSON format with the following fields:
-1. "questionText": The text of the new question. IMPORTANT: If the original question is a multiple-choice question, you MUST include the options (A, B, C, D) in this field as well. Format them clearly (e.g., using \\n for new lines).
-2. "answerText": The correct answer.
-3. "analysis": Step-by-step solution.
-4. "subject": The subject category. Choose ONE from: "数学", "物理", "化学", "生物", "英语", "语文", "历史", "地理", "政治", "其他".
-5. "knowledgePoints": The knowledge points (should match input).
-
-CRITICAL FORMATTING:
-- Return ONLY a valid JSON object, no extra text
-- Do NOT wrap in markdown code blocks
-
-**Expected JSON Format:**
-{
-  "questionText": "新问题的文本（如果是选择题，包含选项 A、B、C、D）",
-  "answerText": "正确答案",
-  "analysis": "详细解析",
-  "subject": "数学",
-  "knowledgePoints": ["知识点1", "知识点2"]
-}
-
-${options?.providerHints || ''}`;
-
-  return basePrompt.trim();
+  return replaceVariables(template, {
+    difficulty_level: difficulty.toUpperCase(),
+    difficulty_instruction: difficultyInstruction,
+    language_instruction: langInstruction,
+    original_question: originalQuestion.replace(/"/g, '\\"').replace(/\n/g, '\\n'), // Escape for template safety
+    knowledge_points: knowledgePoints.join(", "),
+    provider_hints: options?.providerHints || ''
+  }).trim();
 }

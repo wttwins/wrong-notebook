@@ -2,6 +2,7 @@ import OpenAI from "openai";
 import { AIService, ParsedQuestion, DifficultyLevel, AIConfig } from "./types";
 import { jsonrepair } from "jsonrepair";
 import { generateAnalyzePrompt, generateSimilarQuestionPrompt } from './prompts';
+import { getAppConfig } from '../config';
 import { validateParsedQuestion, safeParseParsedQuestion } from './schema';
 
 export class OpenAIProvider implements AIService {
@@ -28,7 +29,7 @@ export class OpenAIProvider implements AIService {
         let jsonString = text.trim();
 
         // 首先尝试移除 markdown 代码块标记（包括可能不完整的）
-        // 匹配 ```json 或 ``` 开头，以及可能的 ``` 结尾
+        // 匹配 ```json 或``` 开头，以及可能的 ``` 结尾
         const codeBlockPattern = /^```(?:json)?\s*\n?([\s\S]*?)(?:\n?```)?$/;
         const match = jsonString.match(codeBlockPattern);
         if (match) {
@@ -207,7 +208,11 @@ export class OpenAIProvider implements AIService {
     }
 
     async generateSimilarQuestion(originalQuestion: string, knowledgePoints: string[], language: 'zh' | 'en' = 'zh', difficulty: DifficultyLevel = 'medium'): Promise<ParsedQuestion> {
-        const systemPrompt = generateSimilarQuestionPrompt(language, originalQuestion, knowledgePoints, difficulty);
+        const config = getAppConfig();
+        const systemPrompt = generateSimilarQuestionPrompt(language, originalQuestion, knowledgePoints, difficulty, {
+            providerHints: "Ensure the output is strictly valid JSON.",
+            customTemplate: config.prompts?.similar
+        });
         const userPrompt = `\nOriginal Question: "${originalQuestion}"\nKnowledge Points: ${knowledgePoints.join(", ")}\n    `;
 
         console.log("\n" + "=".repeat(80));
