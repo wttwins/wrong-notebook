@@ -301,7 +301,7 @@ export function ErrorList({ subjectId, subjectName }: ErrorListProps = {}) {
                                                 .replace(/\\because/g, '∵')
                                                 .replace(/\\therefore/g, '∴')
                                                 // 3. 移除 Markdown 符号与剩余的反斜杠
-                                                .replace(/[#*_`$]/g, '')
+                                                .replace(/[#*`$]/g, '')
                                                 .trim();
 
                                             return cleanText.length > 150
