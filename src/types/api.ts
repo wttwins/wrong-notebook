@@ -55,13 +55,12 @@ export interface ErrorItem {
     questionText?: string | null;
     answerText?: string | null;
     analysis?: string | null;
-    knowledgePoints?: string | null; // JSON string in DB, but API might return parsed array if handled? 
-    // Wait, prisma returns it as string. Frontend needs to parse it.
-    // Actually, let's check how it's used.
+    knowledgePoints?: string | null;
 
     source?: string | null;
     errorType?: string | null;
     userNotes?: string | null;
+    tags?: Tag[];
 
     masteryLevel: number;
     gradeSemester?: string | null;
