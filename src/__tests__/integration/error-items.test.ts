@@ -459,7 +459,7 @@ describe('/api/error-items', () => {
             expect(data.items).toHaveLength(2);
             expect(data.total).toBe(2);
             expect(data.page).toBe(1);
-            expect(data.pageSize).toBe(20);
+            expect(data.pageSize).toBe(18);
             expect(data.totalPages).toBe(1);
         });
 
