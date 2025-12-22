@@ -36,7 +36,7 @@
 - **UI 库**: [React 19](https://react.dev/)
 - **数据库**: [SQLite](https://www.sqlite.org/) (via [Prisma](https://www.prisma.io/))
 - **样式**: [Tailwind CSS v4](https://tailwindcss.com/) + [Shadcn UI](https://ui.shadcn.com/)
-- **AI**: Google Gemini API / OpenAI API
+- **AI**: Google Gemini API / OpenAI API / Azure OpenAI
 - **认证**: [NextAuth.js](https://next-auth.js.org/)
 
 ## 🚀 快速开始
@@ -122,13 +122,18 @@ cp .env.example .env
 
 | 环境变量 | 描述 | 默认值 | 说明 |
 | :--- | :--- | :--- | :--- |
-| `AI_PROVIDER` | AI 提供商 | `gemini` | 可选 `gemini` 或 `openai` |
+| `AI_PROVIDER` | AI 提供商 | `gemini` | 可选 `gemini`, `openai` 或 `azure` |
 | `GOOGLE_API_KEY` | Gemini API Key | 无 | 使用 Gemini 时必填 |
 | `GEMINI_BASE_URL` | Gemini API 地址 | 无 | 可选，用于自定义 API 地址 |
 | `GEMINI_MODEL` | Gemini 模型 | `gemini-2.5-flash` | 可选，如 `gemini-3.0-flash` |
 | `OPENAI_API_KEY` | OpenAI API Key | 无 | 使用 OpenAI 时必填 |
 | `OPENAI_BASE_URL` | OpenAI API 地址 | 无 | 可选，用于兼容的 API 服务 |
 | `OPENAI_MODEL` | OpenAI 模型 | `gpt-4o` | 可选，如 `gpt-4o` |
+| `AZURE_OPENAI_API_KEY` | Azure API Key | 无 | 使用 Azure OpenAI 时必填 |
+| `AZURE_OPENAI_ENDPOINT` | Azure Endpoint | 无 | Azure 资源端点，如 `https://xxx.openai.azure.com` |
+| `AZURE_OPENAI_DEPLOYMENT` | 部署名称 | 无 | Azure 模型部署名称 |
+| `AZURE_OPENAI_API_VERSION` | API 版本 | `2024-02-15-preview` | 可选，Azure API 版本 |
+| `AZURE_OPENAI_MODEL` | Azure 模型 | `gpt-4o` | 可选，显示的模名称 |
 
 #### 5. 初始化数据库
 
@@ -158,11 +163,10 @@ npm run dev
 本项目支持动态配置 AI 模型，无需重启服务器。
 
 1.  **进入设置**：点击首页右上角的设置图标。
-2.  **选择提供商**：支持 Google Gemini 和 OpenAI (或兼容 API，如智谱 GLM-4)。
+2.  **选择提供商**：支持 Google Gemini, OpenAI (或兼容 API) 和 **Azure OpenAI**。
 3.  **填写参数**：
-    *   **API Key**: 您的 API 密钥（支持显示/隐藏查看）。
-    *   **Base URL**: (可选) 自定义 API 地址，用于代理或兼容模型。
-    *   **Model Name**: 指定使用的模型名称 (如 `gemini-2.5-flash`, `gpt-4o`)。
+    *   **通用参数**: API Key, Base URL (或 Endpoint), Model Name (或 Deployment Name)。
+    *   **Azure 特有**: Deployment Name (部署名称), API Version (API 版本)。
 4.  **保存生效**：点击保存后即刻生效。
 
 > **注意**：网页配置会保存到 `config/app-config.json` 文件中，该文件的优先级高于 `.env` 环境变量。
