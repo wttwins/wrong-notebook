@@ -50,7 +50,7 @@ vi.mock('@/lib/auth', () => ({
 vi.mock('@/lib/knowledge-tags', () => ({
     normalizeTags: vi.fn((tags: string[]) => tags),
     normalizeTagsByGradeAndSubject: vi.fn((tags: string[]) => tags),
-    calculateGrade: vi.fn(() => 7),
+    calculateGradeNumber: vi.fn(() => 7),
     inferSubjectFromName: vi.fn(() => 'math'),
 }));
 

@@ -31,20 +31,6 @@ export const DEFAULT_ANALYZE_TEMPLATE = `【角色与核心任务 (ROLE AND CORE
 
 请严格按照以下结构输出内容：
 
-<question_text>
-在此处填写题目的完整文本。使用 Markdown 格式。所有数学公式使用 LaTeX 符号（行内 $...$，块级 $$...$$）。
-</question_text>
-
-<answer_text>
-在此处填写正确答案。使用 Markdown 和 LaTeX 符号。
-</answer_text>
-
-<analysis>
-在此处填写详细的步骤解析。
-* 必须使用简体中文。
-* **直接使用标准的 LaTeX 符号**（如 $\\frac{1}{2}$），**不要**进行 JSON 转义（不要写成 \\\\frac）。
-</analysis>
-
 <subject>
 在此处填写学科，必须是以下之一："数学", "物理", "化学", "生物", "英语", "语文", "历史", "地理", "政治", "其他"。
 </subject>
@@ -56,6 +42,20 @@ export const DEFAULT_ANALYZE_TEMPLATE = `【角色与核心任务 (ROLE AND CORE
 <requires_image>
 判断这道题是否需要依赖图片才能正确解答。如果题目包含几何图形、函数图像、实验装置图、电路图等必须看图才能理解的内容，填写 true；如果只需要文字描述即可理解（如英语题、纯文字数学题），填写 false。
 </requires_image>
+
+<question_text>
+在此处填写题目的完整文本。使用 Markdown 格式。所有数学公式使用 LaTeX 符号（行内 $...$，块级 $$...$$）。
+</question_text>
+
+<answer_text>
+在此处填写正确答案。使用 Markdown 和 LaTeX 符号。
+</answer_text>
+
+<analysis>
+在此处填写详细的步骤解析。
+* 必须使用简体中文。
+* **直接使用标准的 LaTeX 符号**（如 $\frac{1}{2}$），**不要**进行 JSON 转义（不要写成 \\frac）。
+</analysis>
 
 【知识点标签列表（KNOWLEDGE POINT LIST）】
 {{knowledge_points_list}}

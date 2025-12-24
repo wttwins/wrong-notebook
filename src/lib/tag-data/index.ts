@@ -3,3 +3,7 @@ export * from './physics';
 export * from './english';
 export * from './chemistry';
 export * from './biology';
+export * from './chinese';
+export * from './history';
+export * from './geography';
+export * from './politics';

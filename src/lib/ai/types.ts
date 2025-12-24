@@ -2,16 +2,6 @@
 export type { ParsedQuestionFromSchema as ParsedQuestion } from './schema';
 import type { ParsedQuestionFromSchema } from './schema';
 
-// Legacy interface kept for backward compatibility (deprecated)
-/** @deprecated Use ParsedQuestion from schema.ts instead */
-export interface ParsedQuestionLegacy {
-    questionText: string;
-    answerText: string;
-    analysis: string;
-    knowledgePoints: string[];
-    subject?: string;
-}
-
 export type DifficultyLevel = 'easy' | 'medium' | 'hard' | 'harder';
 
 export interface AIService {
@@ -24,4 +14,7 @@ export interface AIConfig {
     apiKey?: string;
     baseUrl?: string;
     model?: string;
+    // Azure OpenAI 特有字段
+    azureDeployment?: string;   // Azure 部署名称
+    azureApiVersion?: string;   // API 版本 (如 2024-02-15-preview)
 }

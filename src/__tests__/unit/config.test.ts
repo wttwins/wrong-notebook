@@ -64,15 +64,24 @@ describe('config module', () => {
             const { getAppConfig } = await import('@/lib/config');
             const config = getAppConfig();
 
-            expect(config.openai?.apiKey).toBe('sk-env-key');
+            // OpenAI 现在使用多实例格式
+            expect(config.openai?.instances?.[0]?.apiKey).toBe('sk-env-key');
             expect(config.gemini?.apiKey).toBe('AIza-env-key');
         });
 
         it('应该从配置文件读取并与默认值合并', async () => {
+            // 新格式的配置文件
             const fileConfig = {
                 aiProvider: 'openai',
                 openai: {
-                    apiKey: 'sk-file-key',
+                    instances: [{
+                        id: 'test-instance',
+                        name: 'Test',
+                        apiKey: 'sk-file-key',
+                        baseUrl: 'https://api.openai.com/v1',
+                        model: 'gpt-4o',
+                    }],
+                    activeInstanceId: 'test-instance',
                 },
             };
             vi.mocked(fs.existsSync).mockReturnValue(true);
@@ -82,7 +91,7 @@ describe('config module', () => {
             const config = getAppConfig();
 
             expect(config.aiProvider).toBe('openai');
-            expect(config.openai?.apiKey).toBe('sk-file-key');
+            expect(config.openai?.instances?.[0]?.apiKey).toBe('sk-file-key');
             // 其他默认值应该保留
             expect(config.allowRegistration).toBe(true);
             expect(config.gemini).toBeDefined();
@@ -101,25 +110,27 @@ describe('config module', () => {
 
         it('应该使用环境变量的模型名称', async () => {
             vi.mocked(fs.existsSync).mockReturnValue(false);
+            process.env.OPENAI_API_KEY = 'sk-test';
             process.env.OPENAI_MODEL = 'gpt-4-turbo';
             process.env.GEMINI_MODEL = 'gemini-3.0';
 
             const { getAppConfig } = await import('@/lib/config');
             const config = getAppConfig();
 
-            expect(config.openai?.model).toBe('gpt-4-turbo');
+            expect(config.openai?.instances?.[0]?.model).toBe('gpt-4-turbo');
             expect(config.gemini?.model).toBe('gemini-3.0');
         });
 
         it('应该使用默认模型名称（无环境变量时）', async () => {
             vi.mocked(fs.existsSync).mockReturnValue(false);
+            process.env.OPENAI_API_KEY = 'sk-test';
             delete process.env.OPENAI_MODEL;
             delete process.env.GEMINI_MODEL;
 
             const { getAppConfig } = await import('@/lib/config');
             const config = getAppConfig();
 
-            expect(config.openai?.model).toBe('gpt-4o');
+            expect(config.openai?.instances?.[0]?.model).toBe('gpt-4o');
             expect(config.gemini?.model).toBe('gemini-2.5-flash');
         });
     });
@@ -142,12 +153,21 @@ describe('config module', () => {
 
             const { updateAppConfig } = await import('@/lib/config');
             const result = updateAppConfig({
-                openai: { apiKey: 'new-key' },
+                openai: {
+                    instances: [{
+                        id: 'new-instance',
+                        name: 'New',
+                        apiKey: 'new-key',
+                        baseUrl: 'https://api.openai.com/v1',
+                        model: 'gpt-4o',
+                    }],
+                    activeInstanceId: 'new-instance',
+                },
             });
 
-            expect(result.openai?.apiKey).toBe('new-key');
-            // 其他 openai 配置应该保留
-            expect(result.openai?.model).toBeDefined();
+            expect(result.openai?.instances?.[0]?.apiKey).toBe('new-key');
+            // 实例应该存在
+            expect(result.openai?.instances?.length).toBeGreaterThan(0);
         });
 
         it('应该在写入失败时抛出错误', async () => {

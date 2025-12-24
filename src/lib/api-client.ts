@@ -1,16 +1,17 @@
 type RequestOptions = RequestInit & {
     params?: Record<string, string>;
+    timeout?: number; // 超时时间（毫秒），默认 60000
 };
 
-class ApiError extends Error {
-    constructor(public status: number, public statusText: string, public data: any) {
+export class ApiError extends Error {
+    constructor(public status: number, public statusText: string, public data: unknown) {
         super(`API Error: ${status} ${statusText}`);
         this.name = 'ApiError';
     }
 }
 
 async function request<T>(url: string, options: RequestOptions = {}): Promise<T> {
-    const { params, headers, ...rest } = options;
+    const { params, headers, timeout = 60000, ...rest } = options;
 
     let finalUrl = url;
     if (params) {
@@ -22,35 +23,51 @@ async function request<T>(url: string, options: RequestOptions = {}): Promise<T>
         'Content-Type': 'application/json',
     };
 
-    const res = await fetch(finalUrl, {
-        headers: {
-            ...defaultHeaders,
-            ...headers,
-        },
-        ...rest,
-    });
-
-    if (!res.ok) {
-        let errorData;
-        try {
-            errorData = await res.json();
-        } catch (e) {
-            errorData = await res.text();
-        }
-        throw new ApiError(res.status, res.statusText, errorData);
-    }
-
-    // Handle empty responses (e.g. 204 No Content)
-    if (res.status === 204) {
-        return {} as T;
-    }
+    // 创建 AbortController 用于超时控制
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
 
     try {
-        return await res.json();
-    } catch (e) {
-        // If JSON parse fails but response was OK, return text or empty object?
-        // For now, assume JSON APIs.
-        return {} as T;
+        const res = await fetch(finalUrl, {
+            headers: {
+                ...defaultHeaders,
+                ...headers,
+            },
+            signal: controller.signal,
+            ...rest,
+        });
+        clearTimeout(timeoutId);
+
+        if (!res.ok) {
+            let errorData;
+            try {
+                errorData = await res.json();
+            } catch {
+                errorData = await res.text();
+            }
+            throw new ApiError(res.status, res.statusText, errorData);
+        }
+
+        // Handle empty responses (e.g. 204 No Content)
+        if (res.status === 204) {
+            return {} as T;
+        }
+
+        try {
+            return await res.json();
+        } catch {
+            // If JSON parse fails but response was OK, return text or empty object?
+            // For now, assume JSON APIs.
+            return {} as T;
+        }
+    } catch (error) {
+        clearTimeout(timeoutId);
+        if (error instanceof Error && error.name === 'AbortError') {
+            throw new ApiError(408, 'Request Timeout', {
+                message: 'AI_TIMEOUT_ERROR'
+            });
+        }
+        throw error;
     }
 }
 

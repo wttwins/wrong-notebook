@@ -5,11 +5,10 @@ import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { BackButton } from "@/components/ui/back-button";
 import { MarkdownRenderer } from "@/components/markdown-renderer";
-import { format } from "date-fns";
-import Image from "next/image";
 import { apiClient } from "@/lib/api-client";
-import { ErrorItem } from "@/types/api";
+import { ErrorItem, PaginatedResponse } from "@/types/api";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { PRINT_PREVIEW_PAGE_SIZE } from "@/lib/constants/pagination";
 
 function PrintPreviewContent() {
     const searchParams = useSearchParams();
@@ -28,8 +27,10 @@ function PrintPreviewContent() {
     const fetchItems = async () => {
         try {
             const params = new URLSearchParams(searchParams.toString());
-            const data = await apiClient.get<ErrorItem[]>(`/api/error-items/list?${params.toString()}`);
-            setItems(data);
+            // 打印预览需要所有符合条件的数据，设置较大的 pageSize
+            params.set("pageSize", String(PRINT_PREVIEW_PAGE_SIZE));
+            const response = await apiClient.get<PaginatedResponse<ErrorItem>>(`/api/error-items/list?${params.toString()}`);
+            setItems(response.items);
         } catch (error) {
             console.error(error);
         } finally {
@@ -128,8 +129,8 @@ function PrintPreviewContent() {
                 {items.map((item, index) => {
                     // 优先使用 tags 关联，回退到 knowledgePoints
                     let tags: string[] = [];
-                    if ((item as any).tags && (item as any).tags.length > 0) {
-                        tags = (item as any).tags.map((t: any) => t.name);
+                    if (item.tags && item.tags.length > 0) {
+                        tags = item.tags.map(t => t.name);
                     } else {
                         try {
                             tags = JSON.parse(item.knowledgePoints || "[]");
@@ -232,8 +233,9 @@ function PrintPreviewContent() {
 }
 
 export default function PrintPreviewPage() {
+    const { t } = useLanguage();
     return (
-        <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
+        <Suspense fallback={<div className="min-h-screen flex items-center justify-center">{t.common.loading}</div>}>
             <PrintPreviewContent />
         </Suspense>
     );

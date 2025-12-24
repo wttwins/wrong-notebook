@@ -10,9 +10,14 @@ const mocks = vi.hoisted(() => ({
         aiProvider: 'gemini',
         allowRegistration: true,
         openai: {
-            apiKey: 'sk-test-key',
-            baseUrl: 'https://api.openai.com/v1',
-            model: 'gpt-4o',
+            instances: [{
+                id: 'test-instance',
+                name: 'Test',
+                apiKey: 'sk-test-key',
+                baseUrl: 'https://api.openai.com/v1',
+                model: 'gpt-4o',
+            }],
+            activeInstanceId: 'test-instance',
         },
         gemini: {
             apiKey: 'AIza-test-key',
@@ -60,7 +65,7 @@ describe('/api/settings', () => {
             const response = await GET();
             const data = await response.json();
 
-            expect(data.openai.apiKey).toBe('sk-test-key');
+            expect(data.openai.instances[0].apiKey).toBe('sk-test-key');
             expect(data.gemini.apiKey).toBe('AIza-test-key');
             expect(data.gemini.model).toBe('gemini-2.5-flash');
         });
@@ -93,9 +98,14 @@ describe('/api/settings', () => {
         it('应该成功更新 OpenAI 配置', async () => {
             const newConfig = {
                 openai: {
-                    apiKey: 'sk-new-key',
-                    baseUrl: 'https://custom.api.com',
-                    model: 'gpt-4-turbo',
+                    instances: [{
+                        id: 'new-instance',
+                        name: 'New Instance',
+                        apiKey: 'sk-new-key',
+                        baseUrl: 'https://custom.api.com',
+                        model: 'gpt-4-turbo',
+                    }],
+                    activeInstanceId: 'new-instance',
                 },
             };
 
@@ -111,8 +121,12 @@ describe('/api/settings', () => {
             expect(mocks.mockUpdateAppConfig).toHaveBeenCalledWith(
                 expect.objectContaining({
                     openai: expect.objectContaining({
-                        apiKey: 'sk-new-key',
-                        model: 'gpt-4-turbo',
+                        instances: expect.arrayContaining([
+                            expect.objectContaining({
+                                apiKey: 'sk-new-key',
+                                model: 'gpt-4-turbo',
+                            }),
+                        ]),
                     }),
                 })
             );
@@ -144,11 +158,19 @@ describe('/api/settings', () => {
             );
         });
 
-        it('应该忽略掩码的 API Key（********）', async () => {
+        it('应该保留掩码 API Key（********）的原有值', async () => {
             const request = new Request('http://localhost/api/settings', {
                 method: 'POST',
                 body: JSON.stringify({
-                    openai: { apiKey: '********' },
+                    openai: {
+                        instances: [{
+                            id: 'test-instance', // 使用 mock 中已存在的实例 ID
+                            name: 'Masked',
+                            apiKey: '********',
+                            baseUrl: 'https://api.openai.com/v1',
+                            model: 'gpt-4o',
+                        }],
+                    },
                     gemini: { apiKey: '********' },
                 }),
                 headers: { 'Content-Type': 'application/json' },
@@ -157,10 +179,12 @@ describe('/api/settings', () => {
             const response = await POST(request);
 
             expect(response.status).toBe(200);
-            // 验证更新时不包含掩码的 key
+            // 验证更新时保留了原有的 key
             const updateCall = mocks.mockUpdateAppConfig.mock.calls[0][0];
-            expect(updateCall.openai?.apiKey).toBeUndefined();
-            expect(updateCall.gemini?.apiKey).toBeUndefined();
+            // OpenAI instances 应该保留，且 apiKey 应为原有值
+            expect(updateCall.openai?.instances?.length).toBe(1);
+            expect(updateCall.openai?.instances?.[0]?.apiKey).toBe('sk-test-key');
+            expect(updateCall.gemini?.apiKey).toBe('AIza-test-key');
         });
 
         it('应该成功更新自定义提示词', async () => {

@@ -30,6 +30,10 @@ const SUBJECTS = [
     { key: 'physics', name: '物理' },
     { key: 'chemistry', name: '化学' },
     { key: 'biology', name: '生物' },
+    { key: 'chinese', name: '语文' },
+    { key: 'history', name: '历史' },
+    { key: 'geography', name: '地理' },
+    { key: 'politics', name: '政治' },
 ] as const;
 
 type SubjectKey = typeof SUBJECTS[number]['key'];
@@ -39,13 +43,17 @@ export default function TagsPage() {
     const [stats, setStats] = useState<TagStats[]>([]);
     const [loading, setLoading] = useState(true);
 
-    // 标签数据 (按学科)
-    const [tagsBySubject, setTagsBySubject] = useState<Record<SubjectKey, TagTreeNode[]>>({
-        math: [],
-        english: [],
-        physics: [],
-        chemistry: [],
-        biology: [],
+    // 标签数据 (按学科) - null 表示未加载，[] 表示已加载但无数据
+    const [tagsBySubject, setTagsBySubject] = useState<Record<SubjectKey, TagTreeNode[] | null>>({
+        math: null,
+        english: null,
+        physics: null,
+        chemistry: null,
+        biology: null,
+        chinese: null,
+        history: null,
+        geography: null,
+        politics: null,
     });
 
     // 自定义标签 (扁平列表，仅用于显示)
@@ -268,7 +276,7 @@ export default function TagsPage() {
                                 className="cursor-pointer hover:bg-muted/50 transition-colors flex flex-row items-center justify-between py-4"
                                 onClick={() => {
                                     toggleNode(`subject-${key}`);
-                                    if (!tags.length) fetchTags(key);
+                                    if (tags === null) fetchTags(key);
                                 }}
                             >
                                 <CardTitle className="text-lg flex items-center gap-2">
@@ -281,10 +289,14 @@ export default function TagsPage() {
                             </CardHeader>
                             {isExpanded && (
                                 <CardContent className="space-y-4 pt-0">
-                                    {tags.length === 0 ? (
+                                    {tags === null ? (
                                         <div className="text-center py-4 text-muted-foreground">
                                             <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" />
                                             Loading...
+                                        </div>
+                                    ) : tags.filter(t => t.isSystem).length === 0 ? (
+                                        <div className="text-center py-4 text-muted-foreground">
+                                            {t.tags?.stats?.empty || "暂无系统标签"}
                                         </div>
                                     ) : (
                                         tags.filter(t => t.isSystem).map(node => renderTreeNode(node))

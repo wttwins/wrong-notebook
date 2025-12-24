@@ -8,7 +8,11 @@ import {
     PHYSICS_CURRICULUM, PHYSICS_GRADE_ORDER,
     ENGLISH_CURRICULUM, ENGLISH_GRADE_ORDER,
     CHEMISTRY_CURRICULUM, CHEMISTRY_GRADE_ORDER,
-    BIOLOGY_CURRICULUM, BIOLOGY_GRADE_ORDER
+    BIOLOGY_CURRICULUM, BIOLOGY_GRADE_ORDER,
+    CHINESE_CURRICULUM, CHINESE_GRADE_ORDER,
+    HISTORY_CURRICULUM, HISTORY_GRADE_ORDER,
+    GEOGRAPHY_CURRICULUM, GEOGRAPHY_GRADE_ORDER,
+    POLITICS_CURRICULUM, POLITICS_GRADE_ORDER
 } from "@/lib/tag-data";
 import { createLogger } from "@/lib/logger";
 import { findParentTagIdForGrade } from "@/lib/tag-recognition";
@@ -89,6 +93,22 @@ export async function POST(req: Request) {
             // Biology
             await tx.knowledgeTag.deleteMany({ where: { isSystem: true, subject: 'biology' } });
             totalCreated += await seedStandardSubject(tx, 'biology', BIOLOGY_CURRICULUM, BIOLOGY_GRADE_ORDER);
+
+            // Chinese
+            await tx.knowledgeTag.deleteMany({ where: { isSystem: true, subject: 'chinese' } });
+            totalCreated += await seedStandardSubject(tx, 'chinese', CHINESE_CURRICULUM, CHINESE_GRADE_ORDER);
+
+            // History
+            await tx.knowledgeTag.deleteMany({ where: { isSystem: true, subject: 'history' } });
+            totalCreated += await seedStandardSubject(tx, 'history', HISTORY_CURRICULUM, HISTORY_GRADE_ORDER);
+
+            // Geography
+            await tx.knowledgeTag.deleteMany({ where: { isSystem: true, subject: 'geography' } });
+            totalCreated += await seedStandardSubject(tx, 'geography', GEOGRAPHY_CURRICULUM, GEOGRAPHY_GRADE_ORDER);
+
+            // Politics
+            await tx.knowledgeTag.deleteMany({ where: { isSystem: true, subject: 'politics' } });
+            totalCreated += await seedStandardSubject(tx, 'politics', POLITICS_CURRICULUM, POLITICS_GRADE_ORDER);
 
             logger.info({ totalCreated }, 'Tags created');
 

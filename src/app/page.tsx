@@ -13,9 +13,10 @@ import { AnalyzeResponse, Notebook } from "@/types/api";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { processImageFile } from "@/lib/image-utils";
-import { Upload, BookOpen, Tags, LogOut, BarChart3, ArrowLeft } from "lucide-react";
+import { Upload, BookOpen, Tags, LogOut, BarChart3 } from "lucide-react";
 import { SettingsDialog } from "@/components/settings-dialog";
-import { signOut, useSession } from "next-auth/react";
+import { BroadcastNotification } from "@/components/broadcast-notification";
+import { signOut } from "next-auth/react";
 
 import { ProgressFeedback, ProgressStatus } from "@/components/ui/progress-feedback";
 import { frontendLogger } from "@/lib/frontend-logger";
@@ -36,6 +37,15 @@ function HomeContent() {
     // Cropper state
     const [croppingImage, setCroppingImage] = useState<string | null>(null);
     const [isCropperOpen, setIsCropperOpen] = useState(false);
+
+    // Cleanup Blob URL to prevent memory leak
+    useEffect(() => {
+        return () => {
+            if (croppingImage) {
+                URL.revokeObjectURL(croppingImage);
+            }
+        };
+    }, [croppingImage]);
 
     useEffect(() => {
         // Fetch notebooks for auto-selection
@@ -61,7 +71,7 @@ function HomeContent() {
             timeout = setTimeout(() => {
                 console.warn('[Progress] Safety timeout triggered - resetting analysisStep');
                 setAnalysisStep('idle');
-            }, 120000); // 120 seconds
+            }, 130000); // 130 seconds (longer than API timeout of 120s)
         }
         return () => {
             clearInterval(interval);
@@ -102,7 +112,7 @@ function HomeContent() {
                 imageBase64: base64Image,
                 language: language,
                 subjectId: initialNotebookId || autoSelectedNotebookId || undefined
-            });
+            }, { timeout: 120000 }); // 2 分钟超时，匹配 Safety timeout
             const apiDuration = Date.now() - apiStartTime;
             frontendLogger.info('[HomeAnalyze]', 'API response received, validating data', {
                 apiDuration
@@ -214,13 +224,28 @@ function HomeContent() {
         }
     };
 
-    const handleSave = async (finalData: ParsedQuestion & { subjectId?: string }) => {
+    const handleSave = async (finalData: ParsedQuestion & { subjectId?: string }): Promise<void> => {
+        frontendLogger.info('[HomeSave]', 'Starting save process', {
+            hasQuestionText: !!finalData.questionText,
+            hasAnswerText: !!finalData.answerText,
+            subjectId: finalData.subjectId,
+            knowledgePointsCount: finalData.knowledgePoints?.length || 0,
+            hasImage: !!currentImage,
+            imageSize: currentImage?.length || 0,
+        });
+
         try {
-            await apiClient.post("/api/error-items", {
+            const result = await apiClient.post<{ id: string; duplicate?: boolean }>("/api/error-items", {
                 ...finalData,
                 originalImageUrl: currentImage || "",
             });
 
+            // 检查是否是重复提交（后端去重返回）
+            if (result.duplicate) {
+                frontendLogger.info('[HomeSave]', 'Duplicate submission detected, using existing record');
+            }
+
+            frontendLogger.info('[HomeSave]', 'Save successful');
             setStep("upload");
             setParsedData(null);
             setCurrentImage(null);
@@ -230,8 +255,12 @@ function HomeContent() {
             if (finalData.subjectId) {
                 router.push(`/notebooks/${finalData.subjectId}`);
             }
-        } catch (error) {
-            console.error(error);
+        } catch (error: any) {
+            frontendLogger.error('[HomeSave]', 'Save failed', {
+                errorStatus: error?.status,
+                errorMessage: error?.data?.message || error?.message || String(error),
+                errorData: error?.data,
+            });
             alert(t.common?.messages?.saveFailed || 'Failed to save');
         }
     };
@@ -260,6 +289,7 @@ function HomeContent() {
                     <UserWelcome />
 
                     <div className="flex items-center gap-2 bg-card p-2 rounded-lg border shadow-sm shrink-0">
+                        <BroadcastNotification />
                         <SettingsDialog />
                         <Button
                             variant="ghost"

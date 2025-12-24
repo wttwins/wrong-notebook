@@ -47,12 +47,19 @@ export async function GET(req: Request) {
             whereClause.subjectId = subjectId;
         }
 
+        // 搜索条件需要使用 AND 包装，避免与其他 OR 条件冲突
+        // 最终的 whereClause.AND 会包含所有需要同时满足的条件
+        const andConditions: any[] = [];
+
         if (query) {
-            whereClause.OR = [
-                { questionText: { contains: query } },
-                { analysis: { contains: query } },
-                { knowledgePoints: { contains: query } },
-            ];
+            // 搜索条件：在题目、解析、知识点中任一匹配即可
+            andConditions.push({
+                OR: [
+                    { questionText: { contains: query } },
+                    { analysis: { contains: query } },
+                    { knowledgePoints: { contains: query } },
+                ]
+            });
         }
 
         // Mastery filter
@@ -76,10 +83,39 @@ export async function GET(req: Request) {
             };
         }
 
-        // Tag filter
-        if (tag) {
+        // Chapter filter (第二级筛选：章节)
+        // 如果指定了 chapter，需要找到该章节下所有子标签的 ID，然后过滤错题
+        const chapter = searchParams.get("chapter");
+        if (chapter) {
+            // 查找该章节标签及其所有后代的ID
+            const chapterTagIds = await findChapterDescendantTagIds(chapter, user.id);
+            if (chapterTagIds.length > 0) {
+                whereClause.tags = {
+                    some: {
+                        id: { in: chapterTagIds }
+                    }
+                };
+            } else {
+                // 章节不存在或没有子标签，应返回空结果
+                // 但为了不破坏其他条件，我们添加一个必然为假的条件
+                whereClause.id = "__IMPOSSIBLE_ID__";
+            }
+        }
+
+        // Tag filter (第三级筛选：具体知识点)
+        if (tag && !chapter) {
+            // 只有在没有 chapter 筛选时才按 tag 过滤
+            // 因为 chapter 筛选已经更精确了
             whereClause.knowledgePoints = {
                 contains: tag,
+            };
+        } else if (tag && chapter) {
+            // 如果同时有 chapter 和 tag，优先用 tag 进一步过滤
+            // 覆盖 chapter 的条件
+            whereClause.tags = {
+                some: {
+                    name: tag
+                }
             };
         }
 
@@ -97,6 +133,11 @@ export async function GET(req: Request) {
         const paperLevel = searchParams.get("paperLevel");
         if (paperLevel && paperLevel !== "all") {
             whereClause.paperLevel = paperLevel;
+        }
+
+        // 将所有 AND 条件合并到 whereClause
+        if (andConditions.length > 0) {
+            whereClause.AND = andConditions;
         }
 
         // 获取总数
@@ -208,4 +249,39 @@ function buildGradeFilter(gradeSemester: string) {
     }
 
     return { OR: orConditions };
+}
+
+// 查找章节标签及其所有后代标签的 ID
+async function findChapterDescendantTagIds(chapterName: string, userId: string): Promise<string[]> {
+    // 1. 找到章节标签本身 (系统标签或用户自定义标签)
+    const chapterTag = await prisma.knowledgeTag.findFirst({
+        where: {
+            name: chapterName,
+            OR: [
+                { isSystem: true },
+                { userId: userId },
+            ],
+        },
+        select: { id: true }
+    });
+
+    if (!chapterTag) return [];
+
+    // 2. 递归查找所有后代标签
+    const descendantIds: string[] = [chapterTag.id];
+    const queue: string[] = [chapterTag.id];
+
+    while (queue.length > 0) {
+        const parentId = queue.shift()!;
+        const children = await prisma.knowledgeTag.findMany({
+            where: { parentId: parentId },
+            select: { id: true }
+        });
+        for (const child of children) {
+            descendantIds.push(child.id);
+            queue.push(child.id);
+        }
+    }
+
+    return descendantIds;
 }

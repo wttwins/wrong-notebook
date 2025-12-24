@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Filter, CheckCircle, Clock, ChevronDown, Printer } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Search, Filter, CheckCircle, Clock, ChevronDown, Printer, ListChecks, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -47,6 +48,10 @@ export function ErrorList({ subjectId, subjectName }: ErrorListProps = {}) {
     const [pageSize] = useState(DEFAULT_PAGE_SIZE);
     const [total, setTotal] = useState(0);
     const [totalPages, setTotalPages] = useState(0);
+    // 多选模式状态
+    const [isSelectMode, setIsSelectMode] = useState(false);
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [isDeleting, setIsDeleting] = useState(false);
     const { t } = useLanguage();
     const router = useRouter();
 
@@ -64,6 +69,7 @@ export function ErrorList({ subjectId, subjectName }: ErrorListProps = {}) {
             params.append("tag", selectedTag);
         }
         if (gradeFilter) params.append("gradeSemester", gradeFilter);
+        if (chapterFilter) params.append("chapter", chapterFilter); // 章节筛选
         if (paperLevelFilter !== "all") params.append("paperLevel", paperLevelFilter);
 
         router.push(`/print-preview?${params.toString()}`);
@@ -76,7 +82,12 @@ export function ErrorList({ subjectId, subjectName }: ErrorListProps = {}) {
     const handleFilterChange = ({ gradeSemester, chapter, tag }: any) => {
         if (gradeSemester !== undefined) setGradeFilter(gradeSemester);
         if (chapter !== undefined) setChapterFilter(chapter);
-        if (tag !== undefined) setSelectedTag(tag);
+        // 注意：tag 可能是 undefined（表示清除），需要用 'tag' in obj 来判断是否传入了该参数
+        // 但由于我们的结构是直接解构，这里改用 null 作为清除标识
+        // 实际上 KnowledgeFilter 传入的是 { tag: undefined }，所以 tag 参数确实会被设置
+        // 问题在于 !== undefined 不能区分"未传入"和"传入undefined"
+        // 正确的做法是检查参数对象中是否有该 key
+        setSelectedTag(tag === undefined ? null : tag);
 
         // Clear dependent filters and reset page
         if (!gradeSemester) {
@@ -106,8 +117,52 @@ export function ErrorList({ subjectId, subjectName }: ErrorListProps = {}) {
         });
     };
 
+    // 多选模式相关函数
+    const toggleSelectMode = () => {
+        setIsSelectMode(!isSelectMode);
+        setSelectedIds(new Set());
+    };
+
+    const toggleSelectItem = (id: string, e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setSelectedIds(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(id)) {
+                newSet.delete(id);
+            } else {
+                newSet.add(id);
+            }
+            return newSet;
+        });
+    };
+
+    const handleBatchDelete = async () => {
+        if (selectedIds.size === 0) return;
+
+        const confirmMsg = (t.notebook?.confirmBatchDelete || "Delete {count} items?")
+            .replace("{count}", selectedIds.size.toString());
+        if (!confirm(confirmMsg)) return;
+
+        setIsDeleting(true);
+        try {
+            await apiClient.post("/api/error-items/batch-delete", {
+                ids: Array.from(selectedIds),
+            });
+            alert(t.notebook?.batchDeleteSuccess || "Deleted successfully");
+            setIsSelectMode(false);
+            setSelectedIds(new Set());
+            fetchItems();
+        } catch (error) {
+            console.error(error);
+            alert(t.common?.messages?.deleteFailed || "Delete failed");
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
     // 追踪筛选条件是否变化（用于判断是否需要重置页码）
-    const prevFiltersRef = useRef({ search, masteryFilter, timeFilter, selectedTag, subjectId, gradeFilter, paperLevelFilter });
+    const prevFiltersRef = useRef({ search, masteryFilter, timeFilter, selectedTag, subjectId, gradeFilter, chapterFilter, paperLevelFilter });
 
     useEffect(() => {
         const prevFilters = prevFiltersRef.current;
@@ -118,10 +173,11 @@ export function ErrorList({ subjectId, subjectName }: ErrorListProps = {}) {
             prevFilters.selectedTag !== selectedTag ||
             prevFilters.subjectId !== subjectId ||
             prevFilters.gradeFilter !== gradeFilter ||
+            prevFilters.chapterFilter !== chapterFilter ||
             prevFilters.paperLevelFilter !== paperLevelFilter;
 
         // 更新 ref
-        prevFiltersRef.current = { search, masteryFilter, timeFilter, selectedTag, subjectId, gradeFilter, paperLevelFilter };
+        prevFiltersRef.current = { search, masteryFilter, timeFilter, selectedTag, subjectId, gradeFilter, chapterFilter, paperLevelFilter };
 
         if (filtersChanged && page !== 1) {
             // 筛选条件变化且不在第一页，重置到第一页（会再次触发此 effect）
@@ -131,7 +187,7 @@ export function ErrorList({ subjectId, subjectName }: ErrorListProps = {}) {
 
         // 正常请求数据
         fetchItems();
-    }, [page, search, masteryFilter, timeFilter, selectedTag, subjectId, gradeFilter, paperLevelFilter]);
+    }, [page, search, masteryFilter, timeFilter, selectedTag, subjectId, gradeFilter, chapterFilter, paperLevelFilter]);
 
     const fetchItems = async () => {
         setLoading(true);
@@ -149,6 +205,7 @@ export function ErrorList({ subjectId, subjectName }: ErrorListProps = {}) {
                 params.append("tag", selectedTag);
             }
             if (gradeFilter) params.append("gradeSemester", gradeFilter);
+            if (chapterFilter) params.append("chapter", chapterFilter); // 章节筛选
             if (paperLevelFilter !== "all") params.append("paperLevel", paperLevelFilter);
             // 分页参数
             params.append("page", page.toString());
@@ -214,6 +271,13 @@ export function ErrorList({ subjectId, subjectName }: ErrorListProps = {}) {
                 <Button variant="outline" onClick={handleExportPrint}>
                     <Printer className="mr-2 h-4 w-4" />
                     {t.notebook?.exportPrint || "导出打印"}
+                </Button>
+                <Button
+                    variant={isSelectMode ? "secondary" : "outline"}
+                    onClick={toggleSelectMode}
+                >
+                    <ListChecks className="mr-2 h-4 w-4" />
+                    {isSelectMode ? (t.notebook?.cancelSelect || "取消") : (t.notebook?.selectMode || "多选")}
                 </Button>
             </div>
 
@@ -285,75 +349,89 @@ export function ErrorList({ subjectId, subjectName }: ErrorListProps = {}) {
                         }
                     }
                     return (
-                        <Link key={item.id} href={`/error-items/${item.id}`}>
-                            <Card className="h-full hover:border-primary/50 transition-colors cursor-pointer gap-2 pt-4">
-                                <CardHeader className="pb-0">
-                                    <div className="flex justify-between items-start">
-                                        <Badge
-                                            variant={item.masteryLevel > 0 ? "default" : "secondary"}
-                                            className={item.masteryLevel > 0 ? "bg-green-600 hover:bg-green-700" : ""}
-                                        >
-                                            {item.masteryLevel > 0 ? (
-                                                <span className="flex items-center gap-1">
-                                                    <CheckCircle className="h-3 w-3" /> {t.notebook.mastered}
-                                                </span>
-                                            ) : (
-                                                <span className="flex items-center gap-1">
-                                                    <Clock className="h-3 w-3" /> {t.notebook.review}
-                                                </span>
-                                            )}
-                                        </Badge>
-                                        <span className="text-xs text-muted-foreground">
-                                            {format(new Date(item.createdAt), "MM/dd")}
-                                        </span>
-                                    </div>
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="text-sm line-clamp-3">
-                                        {(() => {
-                                            // 提取文本并清理 LaTeX/Markdown 格式
-                                            const rawText = (item.questionText || "").split('\n\n')[0]; // 取第一段
-                                            const cleanText = cleanMarkdown(rawText);
-
-                                            return cleanText.length > 80
-                                                ? cleanText.substring(0, 80) + "..."
-                                                : cleanText;
-                                        })()}
-                                    </div>
-                                    <div className="flex flex-wrap gap-2 mt-3">
-                                        {(expandedTags.has(item.id) ? tags : tags.slice(0, 3)).map((tag: string) => (
+                        <div key={item.id} className="relative">
+                            {/* 选择模式下的复选框 */}
+                            {isSelectMode && (
+                                <div
+                                    className="absolute top-2 left-2 z-10"
+                                    onClick={(e) => toggleSelectItem(item.id, e)}
+                                >
+                                    <Checkbox
+                                        checked={selectedIds.has(item.id)}
+                                        className="h-5 w-5 border-2 bg-background shadow-sm"
+                                    />
+                                </div>
+                            )}
+                            <Link href={isSelectMode ? "#" : `/error-items/${item.id}`} onClick={(e) => isSelectMode && e.preventDefault()}>
+                                <Card className="h-full hover:border-primary/50 transition-colors cursor-pointer gap-2 pt-4">
+                                    <CardHeader className="pb-0">
+                                        <div className="flex justify-between items-start">
                                             <Badge
-                                                key={tag}
-                                                variant={selectedTag === tag ? "default" : "outline"}
-                                                className="text-xs cursor-pointer hover:bg-primary/10 transition-colors"
-                                                onClick={(e) => {
-                                                    e.preventDefault();
-                                                    handleTagClick(tag);
-                                                }}
+                                                variant={item.masteryLevel > 0 ? "default" : "secondary"}
+                                                className={item.masteryLevel > 0 ? "bg-green-600 hover:bg-green-700" : ""}
                                             >
-                                                {tag}
-                                            </Badge>
-                                        ))}
-                                        {tags.length > 3 && (
-                                            <Badge
-                                                variant="secondary"
-                                                className="text-xs cursor-pointer hover:bg-secondary/80 transition-colors"
-                                                title={expandedTags.has(item.id)
-                                                    ? (t.notebooks?.collapseTagsTooltip || "Click to collapse")
-                                                    : (t.notebooks?.expandTagsTooltip || "Click to expand {count} tags").replace("{count}", (tags.length - 3).toString())}
-                                                onClick={(e) => toggleTagsExpanded(item.id, e)}
-                                            >
-                                                {expandedTags.has(item.id) ? (
-                                                    <>{t.notebooks?.collapseTags || "Collapse"}</>
+                                                {item.masteryLevel > 0 ? (
+                                                    <span className="flex items-center gap-1">
+                                                        <CheckCircle className="h-3 w-3" /> {t.notebook.mastered}
+                                                    </span>
                                                 ) : (
-                                                    <>{(t.notebooks?.expandTags || "+{count} more").replace("{count}", (tags.length - 3).toString())}</>
+                                                    <span className="flex items-center gap-1">
+                                                        <Clock className="h-3 w-3" /> {t.notebook.review}
+                                                    </span>
                                                 )}
                                             </Badge>
-                                        )}
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        </Link>
+                                            <span className="text-xs text-muted-foreground">
+                                                {format(new Date(item.createdAt), "MM/dd")}
+                                            </span>
+                                        </div>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <div className="text-sm line-clamp-3">
+                                            {(() => {
+                                                // 提取文本并清理 LaTeX/Markdown 格式
+                                                const rawText = (item.questionText || "").split('\n\n')[0]; // 取第一段
+                                                const cleanText = cleanMarkdown(rawText);
+
+                                                return cleanText.length > 80
+                                                    ? cleanText.substring(0, 80) + "..."
+                                                    : cleanText;
+                                            })()}
+                                        </div>
+                                        <div className="flex flex-wrap gap-2 mt-3">
+                                            {(expandedTags.has(item.id) ? tags : tags.slice(0, 3)).map((tag: string) => (
+                                                <Badge
+                                                    key={tag}
+                                                    variant={selectedTag === tag ? "default" : "outline"}
+                                                    className="text-xs cursor-pointer hover:bg-primary/10 transition-colors"
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        handleTagClick(tag);
+                                                    }}
+                                                >
+                                                    {tag}
+                                                </Badge>
+                                            ))}
+                                            {tags.length > 3 && (
+                                                <Badge
+                                                    variant="secondary"
+                                                    className="text-xs cursor-pointer hover:bg-secondary/80 transition-colors"
+                                                    title={expandedTags.has(item.id)
+                                                        ? (t.notebooks?.collapseTagsTooltip || "Click to collapse")
+                                                        : (t.notebooks?.expandTagsTooltip || "Click to expand {count} tags").replace("{count}", (tags.length - 3).toString())}
+                                                    onClick={(e) => toggleTagsExpanded(item.id, e)}
+                                                >
+                                                    {expandedTags.has(item.id) ? (
+                                                        <>{t.notebooks?.collapseTags || "Collapse"}</>
+                                                    ) : (
+                                                        <>{(t.notebooks?.expandTags || "+{count} more").replace("{count}", (tags.length - 3).toString())}</>
+                                                    )}
+                                                </Badge>
+                                            )}
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            </Link>
+                        </div>
                     );
                 })}
             </div>
@@ -366,6 +444,34 @@ export function ErrorList({ subjectId, subjectName }: ErrorListProps = {}) {
                 pageSize={pageSize}
                 onPageChange={setPage}
             />
+
+            {/* 多选模式底部操作栏 */}
+            {isSelectMode && (
+                <div className="fixed bottom-0 left-0 right-0 bg-background border-t shadow-lg p-4 z-50">
+                    <div className="max-w-6xl mx-auto flex items-center justify-between gap-4">
+                        <span className="text-sm text-muted-foreground">
+                            {(t.notebook?.selectedCount || "{count} selected").replace("{count}", selectedIds.size.toString())}
+                        </span>
+                        <div className="flex gap-2">
+                            <Button
+                                variant="outline"
+                                onClick={toggleSelectMode}
+                            >
+                                <X className="mr-2 h-4 w-4" />
+                                {t.notebook?.cancelSelect || "取消"}
+                            </Button>
+                            <Button
+                                variant="destructive"
+                                onClick={handleBatchDelete}
+                                disabled={selectedIds.size === 0 || isDeleting}
+                            >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                {t.notebook?.deleteSelected || "删除选中"}
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

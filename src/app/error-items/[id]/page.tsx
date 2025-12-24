@@ -317,8 +317,8 @@ export default function ErrorDetailPage() {
     }
 
     return (
-        <main className="min-h-screen p-8 bg-background">
-            <div className="max-w-4xl mx-auto space-y-6">
+        <main className="min-h-screen bg-background">
+            <div className="container mx-auto p-4 space-y-6 pb-20">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <div className="flex items-center gap-4">
                         <Link href={item.subjectId ? `/notebooks/${item.subjectId}` : "/notebooks"}>
@@ -366,9 +366,9 @@ export default function ErrorDetailPage() {
                     </div>
                 </div>
 
-                <div className="grid gap-6 md:grid-cols-2">
+                <div className="grid gap-6 lg:grid-cols-2">
                     {/* Left Column: Question & Image */}
-                    <div className="space-y-6">
+                    <div className="space-y-6 min-w-0">
                         <Card>
                             <CardHeader>
                                 <div className="flex justify-between items-center">
@@ -619,7 +619,7 @@ export default function ErrorDetailPage() {
                     </div>
 
                     {/* Right Column: Analysis & Answer */}
-                    <div className="space-y-6">
+                    <div className="space-y-6 min-w-0">
                         <Card className="border-primary/20">
                             <CardHeader>
                                 <div className="flex justify-between items-center">

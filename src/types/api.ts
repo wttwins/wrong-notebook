@@ -55,13 +55,12 @@ export interface ErrorItem {
     questionText?: string | null;
     answerText?: string | null;
     analysis?: string | null;
-    knowledgePoints?: string | null; // JSON string in DB, but API might return parsed array if handled? 
-    // Wait, prisma returns it as string. Frontend needs to parse it.
-    // Actually, let's check how it's used.
+    knowledgePoints?: string | null;
 
     source?: string | null;
     errorType?: string | null;
     userNotes?: string | null;
+    tags?: Tag[];
 
     masteryLevel: number;
     gradeSemester?: string | null;
@@ -106,24 +105,39 @@ export interface UpdateUserProfileRequest {
     password?: string;
 }
 
+export interface OpenAIInstance {
+    id: string;           // 唯一标识 (UUID)
+    name: string;         // 用户自定义名称
+    apiKey: string;
+    baseUrl: string;
+    model: string;
+}
+
 export interface AppConfig {
-    aiProvider: 'gemini' | 'openai';
+    aiProvider: 'gemini' | 'openai' | 'azure';
     allowRegistration?: boolean;
     openai?: {
-        apiKey?: string;
-        baseUrl?: string;
-        model?: string;
+        instances?: OpenAIInstance[];
+        activeInstanceId?: string;
     };
     gemini?: {
         apiKey?: string;
         baseUrl?: string;
         model?: string;
     };
+    azure?: {
+        apiKey?: string;
+        endpoint?: string;       // Azure 资源端点 (https://xxx.openai.azure.com)
+        deploymentName?: string; // 部署名称
+        apiVersion?: string;     // API 版本 (如 2024-02-15-preview)
+        model?: string;          // 显示用模型名 (如 gpt-4o)
+    };
     prompts?: {
         analyze?: string;
         similar?: string;
     };
 }
+
 
 export interface AnalyticsData {
     totalErrors: number;

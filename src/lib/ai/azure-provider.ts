@@ -1,4 +1,4 @@
-import OpenAI from "openai";
+import { AzureOpenAI } from "openai";
 import { AIService, ParsedQuestion, DifficultyLevel, AIConfig } from "./types";
 import { jsonrepair } from "jsonrepair";
 import { generateAnalyzePrompt, generateSimilarQuestionPrompt } from './prompts';
@@ -7,65 +7,71 @@ import { validateParsedQuestion, safeParseParsedQuestion } from './schema';
 import { getMathTagsFromDB, getTagsFromDB } from './tag-service';
 import { createLogger } from '../logger';
 
-const logger = createLogger('ai:openai');
+const logger = createLogger('ai:azure');
 
-export class OpenAIProvider implements AIService {
-    private openai: OpenAI;
+// Azure 配置接口
+export interface AzureConfig {
+    apiKey?: string;
+    endpoint?: string;       // Azure 资源端点 (https://xxx.openai.azure.com)
+    deploymentName?: string; // 部署名称
+    apiVersion?: string;     // API 版本
+    model?: string;          // 显示用模型名
+}
+
+export class AzureOpenAIProvider implements AIService {
+    private client: AzureOpenAI;
     private model: string;
-    private baseURL: string;
+    private deployment: string;
+    private endpoint: string;
 
-    constructor(config?: AIConfig) {
+    constructor(config?: AzureConfig) {
         const apiKey = config?.apiKey;
-        const baseURL = config?.baseUrl;
+        const endpoint = config?.endpoint;
+        const deployment = config?.deploymentName;
 
         if (!apiKey) {
-            throw new Error("AI_AUTH_ERROR: OPENAI_API_KEY is required for OpenAI provider");
+            throw new Error("AI_AUTH_ERROR: AZURE_OPENAI_API_KEY is required for Azure OpenAI provider");
         }
 
-        this.openai = new OpenAI({
+        if (!endpoint) {
+            throw new Error("AI_AUTH_ERROR: AZURE_OPENAI_ENDPOINT is required for Azure OpenAI provider");
+        }
+
+        if (!deployment) {
+            throw new Error("AI_AUTH_ERROR: AZURE_OPENAI_DEPLOYMENT is required for Azure OpenAI provider");
+        }
+
+        this.client = new AzureOpenAI({
             apiKey: apiKey,
-            baseURL: baseURL || undefined,
-            defaultHeaders: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            },
+            endpoint: endpoint,
+            deployment: deployment,
+            apiVersion: config?.apiVersion || '2024-02-15-preview',
         });
 
-        this.model = config?.model || 'gpt-4o'; // Fallback for safety
-        this.baseURL = baseURL || 'https://api.openai.com/v1';
+        this.model = config?.model || deployment;
+        this.deployment = deployment;
+        this.endpoint = endpoint;
 
         logger.info({
-            provider: 'OpenAI',
+            provider: 'Azure OpenAI',
             model: this.model,
-            baseURL: this.baseURL,
+            deployment: this.deployment,
+            endpoint: endpoint,
             apiKeyPrefix: apiKey.substring(0, 8) + '...'
-        }, 'AI Provider initialized');
+        }, 'Azure AI Provider initialized');
     }
 
     private extractTag(text: string, tagName: string): string | null {
         const startTag = `<${tagName}>`;
         const endTag = `</${tagName}>`;
         const startIndex = text.indexOf(startTag);
+        const endIndex = text.lastIndexOf(endTag);
 
-        // 如果找不到开始标签，返回 null
-        if (startIndex === -1) {
+        if (startIndex === -1 || endIndex === -1 || startIndex >= endIndex) {
             return null;
         }
 
-        const contentStartIndex = startIndex + startTag.length;
-        let endIndex = text.lastIndexOf(endTag);
-
-        // 特殊处理：如果闭合标签丢失（通常主要发生在最后的 analysis 标签被截断时）
-        // 我们尝试读取到字符串末尾
-        if (endIndex === -1 && tagName === 'analysis') {
-            logger.warn({ tagName }, 'Tag was verified unclosed, treating as truncated and reading to end');
-            return text.substring(contentStartIndex).trim();
-        }
-
-        if (endIndex === -1 || contentStartIndex >= endIndex) {
-            return null;
-        }
-
-        return text.substring(contentStartIndex, endIndex).trim();
+        return text.substring(startIndex + startTag.length, endIndex).trim();
     }
 
     private parseResponse(text: string): ParsedQuestion {
@@ -94,11 +100,10 @@ export class OpenAIProvider implements AIService {
         // Process Knowledge Points
         let knowledgePoints: string[] = [];
         if (knowledgePointsRaw) {
-            // Split by comma or newline, trim whitespaces
             knowledgePoints = knowledgePointsRaw.split(/[,，\n]/).map(k => k.trim()).filter(k => k.length > 0);
         }
 
-        // Process requiresImage (default to false if not present or unrecognized)
+        // Process requiresImage
         const requiresImage = requiresImageRaw?.toLowerCase().trim() === 'true';
 
         // Construct Result
@@ -111,23 +116,27 @@ export class OpenAIProvider implements AIService {
             requiresImage
         };
 
-        // Final Schema Validation (just to be safe, though likely compliant by now)
+        // Final Schema Validation
         const validation = safeParseParsedQuestion(result);
         if (validation.success) {
             logger.debug('Validated successfully via XML tags');
             return validation.data;
         } else {
             logger.warn({ validationError: validation.error.format() }, 'Schema validation warning');
-            // We still return it as we trust our extraction more than the schema at this point (or we can throw)
-            // Let's return the extracted data to be permissive
             return result;
         }
     }
 
-    async analyzeImage(imageBase64: string, mimeType: string = "image/jpeg", language: 'zh' | 'en' = 'zh', grade?: 7 | 8 | 9 | 10 | 11 | 12 | null, subject?: string | null): Promise<ParsedQuestion> {
+    async analyzeImage(
+        imageBase64: string,
+        mimeType: string = 'image/jpeg',
+        language: 'zh' | 'en' = 'zh',
+        grade?: 7 | 8 | 9 | 10 | 11 | 12 | null,
+        subject?: string | null
+    ): Promise<ParsedQuestion> {
         const config = getAppConfig();
 
-        // 从数据库获取各学科标签
+        // 从数据库获取各学科标签（参考 openai-provider.ts）
         // 如果指定了学科，只获取该学科；否则获取所有学科标签供 AI 判断
         const prefetchedMathTags = (subject === '数学' || !subject) ? await getMathTagsFromDB(grade || null) : [];
         const prefetchedPhysicsTags = (subject === '物理' || !subject) ? await getTagsFromDB('physics') : [];
@@ -145,48 +154,24 @@ export class OpenAIProvider implements AIService {
         });
 
         logger.box('🔍 AI Image Analysis Request', {
-            provider: 'OpenAI',
-            endpoint: `${this.baseURL}/chat/completions`,
+            provider: 'Azure OpenAI',
+            endpoint: this.endpoint,
             imageSize: `${imageBase64.length} bytes`,
             mimeType,
             model: this.model,
+            deployment: this.deployment,
             language,
             grade: grade || 'all'
         });
         logger.box('📝 Full System Prompt', systemPrompt);
 
         try {
-            // 构建请求参数（用于日志显示，图片数据截断）
-            const requestParamsForLog = {
-                model: this.model,
+            const response = await this.client.chat.completions.create({
+                model: this.deployment,
                 messages: [
                     {
                         role: "system",
-                        content: systemPrompt
-                    },
-                    {
-                        role: "user",
-                        content: [
-                            {
-                                type: "image_url",
-                                image_url: {
-                                    url: `data:${mimeType};base64,[...${imageBase64.length} bytes base64 data...]`,
-                                },
-                            },
-                        ],
-                    },
-                ],
-                max_tokens: 8192,
-            };
-
-            logger.box('📤 API Request (发送给 AI 的原始请求)', JSON.stringify(requestParamsForLog, null, 2));
-
-            const response = await this.openai.chat.completions.create({
-                model: this.model,
-                messages: [
-                    {
-                        role: "system",
-                        content: systemPrompt
+                        content: systemPrompt,
                     },
                     {
                         role: "user",
@@ -200,7 +185,6 @@ export class OpenAIProvider implements AIService {
                         ],
                     },
                 ],
-                // response_format: { type: "json_object" }, // Removing to improve compatibility with 3rd party providers
                 max_tokens: 8192,
             });
 
@@ -233,17 +217,26 @@ export class OpenAIProvider implements AIService {
         }
     }
 
-    async generateSimilarQuestion(originalQuestion: string, knowledgePoints: string[], language: 'zh' | 'en' = 'zh', difficulty: DifficultyLevel = 'medium'): Promise<ParsedQuestion> {
+    async generateSimilarQuestion(
+        originalQuestion: string,
+        knowledgePoints: string[],
+        language: 'zh' | 'en' = 'zh',
+        difficulty: DifficultyLevel = 'medium'
+    ): Promise<ParsedQuestion> {
         const config = getAppConfig();
         const systemPrompt = generateSimilarQuestionPrompt(language, originalQuestion, knowledgePoints, difficulty, {
             customTemplate: config.prompts?.similar
         });
-        const userPrompt = `\nOriginal Question: "${originalQuestion}"\nKnowledge Points: ${knowledgePoints.join(", ")}\n    `;
+        const userPrompt = `
+Original Question: "${originalQuestion}"
+Knowledge Points: ${knowledgePoints.join(", ")}
+        `;
 
         logger.box('🎯 Generate Similar Question Request', {
-            provider: 'OpenAI',
-            endpoint: `${this.baseURL}/chat/completions`,
+            provider: 'Azure OpenAI',
+            endpoint: this.endpoint,
             model: this.model,
+            deployment: this.deployment,
             originalQuestion: originalQuestion.substring(0, 100) + '...',
             knowledgePoints: knowledgePoints.join(', '),
             difficulty,
@@ -253,13 +246,18 @@ export class OpenAIProvider implements AIService {
         logger.box('📝 User Prompt', userPrompt);
 
         try {
-            const response = await this.openai.chat.completions.create({
-                model: this.model,
+            const response = await this.client.chat.completions.create({
+                model: this.deployment,
                 messages: [
-                    { role: "system", content: systemPrompt },
-                    { role: "user", content: userPrompt },
+                    {
+                        role: "system",
+                        content: systemPrompt,
+                    },
+                    {
+                        role: "user",
+                        content: userPrompt,
+                    },
                 ],
-                // response_format: { type: "json_object" }, // Removing to improve compatibility with 3rd party providers
                 max_tokens: 8192,
             });
 
@@ -275,7 +273,7 @@ export class OpenAIProvider implements AIService {
             return parsedResult;
 
         } catch (error) {
-            logger.box('❌ Error during question generation', {
+            logger.box('❌ Error during similar question generation', {
                 error: error instanceof Error ? error.message : String(error),
                 stack: error instanceof Error ? error.stack : undefined
             });
@@ -284,18 +282,46 @@ export class OpenAIProvider implements AIService {
         }
     }
 
-    async reanswerQuestion(questionText: string, language: 'zh' | 'en' = 'zh', subject?: string | null, imageBase64?: string): Promise<{ answerText: string; analysis: string; knowledgePoints: string[] }> {
-        const { generateReanswerPrompt } = await import('./prompts');
-        const prompt = generateReanswerPrompt(language, questionText, subject);
+    async reanswerQuestion(
+        questionText: string,
+        language: 'zh' | 'en' = 'zh',
+        subject?: string | null,
+        imageBase64?: string
+    ): Promise<{ answerText: string; analysis: string; knowledgePoints: string[] }> {
+        // 构建 prompt（参考 openai-provider.ts）
+        const prompt = language === 'zh'
+            ? `你是一位专业的学科老师。请根据给定的题目，提供：
+1. 标准答案
+2. 详细的解析过程
+3. 涉及的知识点列表
 
-        logger.info({
-            provider: 'OpenAI',
-            endpoint: `${this.baseURL}/chat/completions`,
+请使用以下格式回复：
+<answer_text>标准答案</answer_text>
+<analysis>详细解析</analysis>
+<knowledge_points>知识点1, 知识点2, ...</knowledge_points>
+
+题目：${questionText}`
+            : `You are a professional teacher. Based on the given question, provide:
+1. Standard answer
+2. Detailed analysis
+3. List of knowledge points
+
+Please respond in the following format:
+<answer_text>Standard answer</answer_text>
+<analysis>Detailed analysis</analysis>
+<knowledge_points>Knowledge point 1, Knowledge point 2, ...</knowledge_points>
+
+Question: ${questionText}`;
+
+        logger.box('🔄 Reanswer Question Request', {
+            provider: 'Azure OpenAI',
+            endpoint: this.endpoint,
             model: this.model,
+            deployment: this.deployment,
             questionLength: questionText.length,
             subject: subject || 'auto',
             hasImage: !!imageBase64
-        }, 'Reanswer Question Request');
+        });
         logger.debug({ prompt }, 'Full prompt');
 
         try {
@@ -313,19 +339,8 @@ export class OpenAIProvider implements AIService {
                 logger.debug({ imageBase64Type: typeof imageBase64, hasValue: !!imageBase64 }, 'No image data');
             }
 
-            // 打印请求参数
-            const requestParams = {
-                model: this.model,
-                messages: [
-                    { role: "system", content: prompt.substring(0, 200) + "..." },
-                    { role: "user", content: typeof userContent === 'string' ? userContent : "[包含图片的多模态消息]" }
-                ],
-                max_tokens: 8192
-            };
-            logger.debug({ requestParams }, 'Request parameters');
-
-            const response = await this.openai.chat.completions.create({
-                model: this.model,
+            const response = await this.client.chat.completions.create({
+                model: this.deployment,
                 messages: [
                     { role: "system", content: prompt },
                     { role: "user", content: userContent }
@@ -365,7 +380,7 @@ export class OpenAIProvider implements AIService {
     }
 
     private handleError(error: unknown) {
-        logger.error({ error }, 'OpenAI error');
+        logger.error({ error }, 'Azure OpenAI error');
         if (error instanceof Error) {
             const msg = error.message.toLowerCase();
             if (msg.includes('fetch failed') || msg.includes('network') || msg.includes('connect')) {
@@ -381,4 +396,3 @@ export class OpenAIProvider implements AIService {
         throw new Error("AI_UNKNOWN_ERROR");
     }
 }
-

@@ -33,7 +33,7 @@ export function MarkdownRenderer({ content, className = '' }: MarkdownRendererPr
         .replace(/\s*###PRESERVE_BREAK###\s*/g, '\n\n');
 
     return (
-        <div className={`markdown-content ${className}`}>
+        <div className={`markdown-content overflow-x-auto min-w-0 ${className}`}>
             <ReactMarkdown
                 remarkPlugins={[remarkMath, remarkGfm]}
                 rehypePlugins={[rehypeKatex]}

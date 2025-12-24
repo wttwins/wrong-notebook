@@ -32,6 +32,15 @@ export default function AddErrorPage() {
     const [croppingImage, setCroppingImage] = useState<string | null>(null);
     const [isCropperOpen, setIsCropperOpen] = useState(false);
 
+    // Cleanup Blob URL to prevent memory leak
+    useEffect(() => {
+        return () => {
+            if (croppingImage) {
+                URL.revokeObjectURL(croppingImage);
+            }
+        };
+    }, [croppingImage]);
+
     useEffect(() => {
         // Fetch notebook info
         apiClient.get<Notebook>(`/api/notebooks/${notebookId}`)
@@ -59,7 +68,7 @@ export default function AddErrorPage() {
             timeout = setTimeout(() => {
                 console.warn('[Progress] Safety timeout triggered - resetting analysisStep');
                 setAnalysisStep('idle');
-            }, 120000); // 120 seconds
+            }, 130000); // 130 seconds (longer than API timeout of 120s)
         }
         return () => {
             clearInterval(interval);
@@ -99,7 +108,7 @@ export default function AddErrorPage() {
                 imageBase64: base64Image,
                 language: language,
                 subjectId: notebookId
-            });
+            }, { timeout: 120000 }); // 2 分钟超时，匹配 Safety timeout
             const apiDuration = Date.now() - apiStartTime;
             frontendLogger.info('[AddAnalyze]', 'API response received, validating data', {
                 apiDuration
@@ -202,18 +211,23 @@ export default function AddErrorPage() {
         }
     };
 
-    const handleSave = async (finalData: ParsedQuestion & { subjectId?: string; gradeSemester?: string; paperLevel?: string }) => {
+    const handleSave = async (finalData: ParsedQuestion & { subjectId?: string; gradeSemester?: string; paperLevel?: string }): Promise<void> => {
         if (!currentImage) {
             alert(t.common.messages?.missingImage || 'Missing image');
             return;
         }
 
         try {
-            await apiClient.post("/api/error-items", {
+            const result = await apiClient.post<{ id: string; duplicate?: boolean }>("/api/error-items", {
                 ...finalData,
                 originalImageUrl: currentImage,
                 subjectId: notebookId,
             });
+
+            // 检查是否是重复提交（后端去重返回）
+            if (result.duplicate) {
+                frontendLogger.info('[AddSave]', 'Duplicate submission detected, using existing record');
+            }
 
             alert(t.common.messages?.saveSuccess || 'Saved!');
             router.push(`/notebooks/${notebookId}`);

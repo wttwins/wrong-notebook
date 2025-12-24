@@ -26,7 +26,7 @@ interface ParsedQuestionWithSubject extends ParsedQuestion {
 
 interface CorrectionEditorProps {
     initialData: ParsedQuestion;
-    onSave: (data: ParsedQuestionWithSubject) => void;
+    onSave: (data: ParsedQuestionWithSubject) => Promise<void>;
     onCancel: () => void;
     imagePreview?: string | null;
     initialSubjectId?: string;
@@ -42,6 +42,7 @@ export function CorrectionEditor({ initialData, onSave, onCancel, imagePreview, 
     });
     const { t, language } = useLanguage();
     const [isReanswering, setIsReanswering] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
 
     const [educationStage, setEducationStage] = useState<string | undefined>(undefined);
     const [notebooks, setNotebooks] = useState<Notebook[]>([]);
@@ -132,15 +133,28 @@ export function CorrectionEditor({ initialData, onSave, onCancel, imagePreview, 
                     <Button variant="outline" onClick={onCancel}>
                         {t.editor.cancel}
                     </Button>
-                    <Button onClick={() => {
-                        if (!data.subjectId) {
-                            alert(t.editor.messages?.selectNotebook || "Please select a notebook");
-                            return;
-                        }
-                        onSave(data);
-                    }}>
-                        <Save className="mr-2 h-4 w-4" />
-                        {t.editor.save}
+                    <Button
+                        onClick={async () => {
+                            if (!data.subjectId) {
+                                alert(t.editor.messages?.selectNotebook || "Please select a notebook");
+                                return;
+                            }
+                            if (isSaving) return; // 防止重复点击
+                            setIsSaving(true);
+                            try {
+                                await onSave(data);
+                            } finally {
+                                setIsSaving(false);
+                            }
+                        }}
+                        disabled={isSaving}
+                    >
+                        {isSaving ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                            <Save className="mr-2 h-4 w-4" />
+                        )}
+                        {isSaving ? (t.common?.pleaseWait || "Please wait...") : t.editor.save}
                     </Button>
                 </div>
             </div>
@@ -200,11 +214,11 @@ export function CorrectionEditor({ initialData, onSave, onCancel, imagePreview, 
                             placeholder={t.editor.placeholder || "Supports Markdown and LaTeX..."}
                         />
                         <Button
-                            variant="outline"
+                            variant="default"
                             size="sm"
                             onClick={handleReanswer}
                             disabled={isReanswering || !data.questionText.trim()}
-                            className="w-full"
+                            className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-medium"
                         >
                             {isReanswering ? (
                                 <>
@@ -220,6 +234,21 @@ export function CorrectionEditor({ initialData, onSave, onCancel, imagePreview, 
                         </Button>
                         <p className="text-xs text-muted-foreground">
                             {t.editor.reanswerHint || '💡 If the question was misrecognized, correct it and click to regenerate answer'}
+                        </p>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label>{t.editor.tags}</Label>
+                        <TagInput
+                            value={data.knowledgePoints}
+                            onChange={(tags) => setData({ ...data, knowledgePoints: tags })}
+                            placeholder={t.editor.tagsPlaceholder || "Enter knowledge tags..."}
+                            enterHint={t.editor.createTagHint}
+                            subject={inferSubjectFromName(notebooks.find(n => n.id === data.subjectId)?.name || null) || inferSubjectFromName(data.subject || null) || undefined}
+                            gradeStage={educationStage}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                            {t.editor.tagsHint || "💡 Tag suggestions will appear as you type"}
                         </p>
                     </div>
 
@@ -241,21 +270,6 @@ export function CorrectionEditor({ initialData, onSave, onCancel, imagePreview, 
                             className="min-h-[200px] font-mono text-sm"
                             placeholder={t.editor.placeholder || "Supports Markdown and LaTeX..."}
                         />
-                    </div>
-
-                    <div className="space-y-2">
-                        <Label>{t.editor.tags}</Label>
-                        <TagInput
-                            value={data.knowledgePoints}
-                            onChange={(tags) => setData({ ...data, knowledgePoints: tags })}
-                            placeholder={t.editor.tagsPlaceholder || "Enter knowledge tags..."}
-                            enterHint={t.editor.createTagHint}
-                            subject={inferSubjectFromName(notebooks.find(n => n.id === data.subjectId)?.name || null) || inferSubjectFromName(data.subject || null) || undefined}
-                            gradeStage={educationStage}
-                        />
-                        <p className="text-xs text-muted-foreground">
-                            {t.editor.tagsHint || "💡 Tag suggestions will appear as you type"}
-                        </p>
                     </div>
                 </div>
 

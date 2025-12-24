@@ -44,10 +44,11 @@ vi.mock('@/lib/logger', () => ({
 // Mock config
 vi.mock('@/lib/config', () => ({
     getAppConfig: vi.fn(),
+    getActiveOpenAIConfig: vi.fn(),
 }));
 
 // Delayed import to ensure mocks are applied
-import { getAppConfig } from '@/lib/config';
+import { getAppConfig, getActiveOpenAIConfig } from '@/lib/config';
 
 describe('AI Provider 初始化', () => {
     beforeEach(() => {
@@ -130,9 +131,19 @@ describe('AI Provider 初始化', () => {
             const { getAIService } = await import('@/lib/ai');
             vi.mocked(getAppConfig).mockReturnValue({
                 aiProvider: 'openai',
-                openai: { apiKey: 'test-openai-key', model: 'gpt-4o' },
+                openai: {
+                    instances: [{ id: 'test', name: 'Test', apiKey: 'test-openai-key', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o' }],
+                    activeInstanceId: 'test',
+                },
                 gemini: { apiKey: '', model: '' }
             } as any);
+            vi.mocked(getActiveOpenAIConfig).mockReturnValue({
+                id: 'test',
+                name: 'Test',
+                apiKey: 'test-openai-key',
+                baseUrl: 'https://api.openai.com/v1',
+                model: 'gpt-4o',
+            });
 
             const service = getAIService();
 

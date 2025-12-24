@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import {
     Dialog,
@@ -20,16 +20,30 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, Trash2, Loader2, AlertTriangle, Save, Eye, EyeOff, Languages, User, Bot, Shield, RefreshCw } from "lucide-react";
+import { Settings, Trash2, Loader2, AlertTriangle, Save, Eye, EyeOff, Languages, User, Bot, Shield, RefreshCw, Plus } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { UserManagement } from "@/components/admin/user-management";
 import { apiClient } from "@/lib/api-client";
-import { AppConfig, UserProfile, UpdateUserProfileRequest } from "@/types/api";
+import { frontendLogger } from "@/lib/frontend-logger";
+import { AppConfig, UserProfile, UpdateUserProfileRequest, OpenAIInstance } from "@/types/api";
 import { ModelSelector } from "@/components/ui/model-selector";
 import { PromptSettings } from "@/components/settings/prompt-settings";
-import { MessageSquareText } from "lucide-react";
+
+import { MessageSquareText, Info, ExternalLink, Github, ScrollText } from "lucide-react";
+import packageJson from "../../package.json";
+
+const MAX_OPENAI_INSTANCES = 10;
+
+// 生成唯一 ID
+function generateId(): string {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = Math.random() * 16 | 0;
+        const v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+}
 
 interface ProfileFormState {
     name: string;
@@ -43,6 +57,7 @@ export function SettingsDialog() {
     const { data: session } = useSession();
     const { t, language, setLanguage } = useLanguage();
     const [open, setOpen] = useState(false);
+    const dialogContentRef = useRef<HTMLDivElement>(null);
     const [clearingPractice, setClearingPractice] = useState(false);
     const [clearingError, setClearingError] = useState(false);
     const [systemResetting, setSystemResetting] = useState(false);
@@ -51,6 +66,8 @@ export function SettingsDialog() {
     const [loading, setLoading] = useState(false);
     const [showApiKey, setShowApiKey] = useState(false);
     const [config, setConfig] = useState<AppConfig>({ aiProvider: 'gemini' });
+    // OpenAI 多实例状态
+    const [selectedInstanceId, setSelectedInstanceId] = useState<string | undefined>(undefined);
 
     // Profile State
     const [profile, setProfile] = useState<ProfileFormState>({
@@ -81,7 +98,7 @@ export function SettingsDialog() {
             const data = await apiClient.get<AppConfig>("/api/settings");
             setConfig(data);
         } catch (error) {
-            console.error("Failed to fetch settings:", error);
+            frontendLogger.error('[SettingsDialog]', 'Failed to fetch settings', { error: error instanceof Error ? error.message : String(error) });
         } finally {
             setLoading(false);
         }
@@ -99,19 +116,71 @@ export function SettingsDialog() {
                 password: ""
             });
         } catch (error) {
-            console.error("Failed to fetch profile:", error);
+            frontendLogger.error('[SettingsDialog]', 'Failed to fetch profile', { error: error instanceof Error ? error.message : String(error) });
         } finally {
             setProfileLoading(false);
         }
     };
 
+    // 验证 OpenAI 实例必填字段
+    const validateOpenAIInstances = (): string | null => {
+        if (config.aiProvider !== 'openai') return null;
+        const instances = config.openai?.instances || [];
+        for (const instance of instances) {
+            if (!instance.name?.trim()) {
+                return t.settings?.ai?.validationNameRequired || '实例名称不能为空';
+            }
+            if (!instance.apiKey?.trim()) {
+                return t.settings?.ai?.validationApiKeyRequired || 'API Key 不能为空';
+            }
+            if (!instance.baseUrl?.trim()) {
+                return t.settings?.ai?.validationBaseUrlRequired || 'Base URL 不能为空';
+            }
+            if (!instance.model?.trim()) {
+                return t.settings?.ai?.validationModelRequired || '模型名称不能为空';
+            }
+        }
+        return null;
+    };
+
+    // 验证 Azure OpenAI 必填字段
+    const validateAzureConfig = (): string | null => {
+        if (config.aiProvider !== 'azure') return null;
+        if (!config.azure?.endpoint?.trim()) {
+            return t.settings?.ai?.validationAzureEndpointRequired || 'Azure Endpoint is required';
+        }
+        if (!config.azure?.deploymentName?.trim()) {
+            return t.settings?.ai?.validationAzureDeploymentRequired || 'Deployment Name is required';
+        }
+        if (!config.azure?.apiKey?.trim()) {
+            return t.settings?.ai?.validationApiKeyRequired || 'API Key is required';
+        }
+        return null;
+    };
+
     const handleSaveSettings = async () => {
+        // 验证 OpenAI 实例必填字段
+        const openaiValidationError = validateOpenAIInstances();
+        if (openaiValidationError) {
+            alert(openaiValidationError);
+            return;
+        }
+
+        // 验证 Azure 必填字段
+        const azureValidationError = validateAzureConfig();
+        if (azureValidationError) {
+            alert(azureValidationError);
+            return;
+        }
+
         setSaving(true);
         try {
             await apiClient.post("/api/settings", config);
             alert(t.settings?.messages?.saved || "Settings saved");
+            // 保存成功后滚动到顶部，方便关闭对话框
+            dialogContentRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
         } catch (error) {
-            console.error("Failed to save settings:", error);
+            frontendLogger.error('[SettingsDialog]', 'Failed to save settings', { error: error instanceof Error ? error.message : String(error) });
             alert(t.settings?.messages?.saveFailed || "Failed to save");
         } finally {
             setSaving(false);
@@ -151,7 +220,7 @@ export function SettingsDialog() {
             setShowConfirmPassword(false);
             window.location.reload(); // Reload to update user name in UI
         } catch (error: any) {
-            console.error("Failed to update profile:", error);
+            frontendLogger.error('[SettingsDialog]', 'Failed to update profile', { error: error?.data?.message || error?.message || String(error) });
             const message = error.data?.message || (t.settings?.messages?.updateFailed || "Update failed");
             alert(message);
         } finally {
@@ -171,7 +240,7 @@ export function SettingsDialog() {
             setOpen(false);
             window.location.reload();
         } catch (error) {
-            console.error(error);
+            frontendLogger.error('[SettingsDialog]', 'Failed to clear practice data', { error: error instanceof Error ? error.message : String(error) });
             alert(t.settings?.clearError || "Failed");
         } finally {
             setClearingPractice(false);
@@ -190,7 +259,7 @@ export function SettingsDialog() {
             setOpen(false);
             window.location.reload();
         } catch (error) {
-            console.error(error);
+            frontendLogger.error('[SettingsDialog]', 'Failed to clear error data', { error: error instanceof Error ? error.message : String(error) });
             alert(t.settings?.clearError || "Failed");
         } finally {
             setClearingError(false);
@@ -217,7 +286,7 @@ export function SettingsDialog() {
             setOpen(false);
             window.location.reload();
         } catch (error) {
-            console.error("System reset failed:", error);
+            frontendLogger.error('[SettingsDialog]', 'System reset failed', { error: error instanceof Error ? error.message : String(error) });
             alert(t.settings?.clearError || "Failed to reset system");
         } finally {
             setSystemResetting(false);
@@ -235,7 +304,7 @@ export function SettingsDialog() {
             alert(`${t.settings?.clearSuccess || "Success"}: ${(res as any).count || 0} tags migrated.`);
             // No reload needed necessarily, but good to refresh if user is viewing tags.
         } catch (error) {
-            console.error("Tag migration failed:", error);
+            frontendLogger.error('[SettingsDialog]', 'Tag migration failed', { error: error instanceof Error ? error.message : String(error) });
             alert(t.settings?.clearError || "Failed to migrate tags");
         } finally {
             setMigratingTags(false);
@@ -243,14 +312,98 @@ export function SettingsDialog() {
     };
 
     const updateConfig = (section: 'openai' | 'gemini', key: string, value: string) => {
+        if (section === 'gemini') {
+            setConfig(prev => ({
+                ...prev,
+                gemini: {
+                    ...prev.gemini,
+                    [key]: value
+                }
+            }));
+        }
+        // OpenAI 配置更新通过 updateOpenAIInstance 处理
+    };
+
+    // 获取当前选中的 OpenAI 实例
+    const getSelectedInstance = (): OpenAIInstance | undefined => {
+        const instances = config.openai?.instances || [];
+        const activeId = selectedInstanceId || config.openai?.activeInstanceId;
+        return instances.find(i => i.id === activeId);
+    };
+
+    // 更新当前选中的 OpenAI 实例属性
+    const updateOpenAIInstance = (key: keyof OpenAIInstance, value: string) => {
+        const instances = config.openai?.instances || [];
+        const activeId = selectedInstanceId || config.openai?.activeInstanceId;
+        const updatedInstances = instances.map(instance =>
+            instance.id === activeId ? { ...instance, [key]: value } : instance
+        );
         setConfig(prev => ({
             ...prev,
-            [section]: {
-                ...prev[section],
-                [key]: value
+            openai: {
+                ...prev.openai,
+                instances: updatedInstances,
             }
         }));
     };
+
+    // 添加新的 OpenAI 实例
+    const addOpenAIInstance = () => {
+        const instances = config.openai?.instances || [];
+        if (instances.length >= MAX_OPENAI_INSTANCES) return;
+
+        const newInstance: OpenAIInstance = {
+            id: generateId(),
+            name: `Instance ${instances.length + 1}`,
+            apiKey: '',
+            baseUrl: 'https://api.openai.com/v1',
+            model: 'gpt-4o',
+        };
+
+        setConfig(prev => ({
+            ...prev,
+            openai: {
+                instances: [...(prev.openai?.instances || []), newInstance],
+                activeInstanceId: newInstance.id,
+            }
+        }));
+        setSelectedInstanceId(newInstance.id);
+    };
+
+    // 删除 OpenAI 实例
+    const deleteOpenAIInstance = (instanceId: string) => {
+        const instances = config.openai?.instances || [];
+        const updatedInstances = instances.filter(i => i.id !== instanceId);
+        const newActiveId = updatedInstances.length > 0 ? updatedInstances[0].id : undefined;
+
+        setConfig(prev => ({
+            ...prev,
+            openai: {
+                instances: updatedInstances,
+                activeInstanceId: newActiveId,
+            }
+        }));
+        setSelectedInstanceId(newActiveId);
+    };
+
+    // 切换激活的 OpenAI 实例
+    const setActiveOpenAIInstance = (instanceId: string) => {
+        setSelectedInstanceId(instanceId);
+        setConfig(prev => ({
+            ...prev,
+            openai: {
+                ...prev.openai,
+                activeInstanceId: instanceId,
+            }
+        }));
+    };
+
+    // 同步 selectedInstanceId 与 config
+    useEffect(() => {
+        if (config.openai?.activeInstanceId && !selectedInstanceId) {
+            setSelectedInstanceId(config.openai.activeInstanceId);
+        }
+    }, [config.openai?.activeInstanceId, selectedInstanceId]);
 
     const updatePrompts = (type: 'analyze' | 'similar', value: string) => {
         setConfig(prev => ({
@@ -270,7 +423,7 @@ export function SettingsDialog() {
                     <span className="sr-only">{t.settings?.title || "Settings"}</span>
                 </Button>
             </DialogTrigger>
-            <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-[900px] max-h-[85vh] overflow-y-auto">
+            <DialogContent ref={dialogContentRef} className="w-[calc(100vw-2rem)] sm:max-w-[900px] max-h-[85vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>{t.settings?.title || "Settings"}</DialogTitle>
                     <DialogDescription>
@@ -279,7 +432,7 @@ export function SettingsDialog() {
                 </DialogHeader>
 
                 <Tabs defaultValue="general" className="w-full">
-                    <TabsList className={`grid w-full grid-cols-3 sm:grid-cols-5 ${(session?.user as any)?.role === 'admin' ? 'sm:grid-cols-6' : ''} gap-1`}>
+                    <TabsList className={`grid w-full grid-cols-3 sm:grid-cols-6 ${(session?.user as any)?.role === 'admin' ? 'sm:grid-cols-7' : ''} gap-1 h-auto`}>
                         <TabsTrigger value="general" className="px-2 sm:px-3">
                             <Languages className="h-4 w-4 sm:mr-2" />
                             <span className="hidden sm:inline">{t.settings?.tabs?.general || "General"}</span>
@@ -305,6 +458,10 @@ export function SettingsDialog() {
                         <TabsTrigger value="danger" className="px-2 sm:px-3">
                             <AlertTriangle className="h-4 w-4 sm:mr-2" />
                             <span className="hidden sm:inline">{t.settings?.tabs?.danger || "Danger"}</span>
+                        </TabsTrigger>
+                        <TabsTrigger value="about" className="px-2 sm:px-3">
+                            <Info className="h-4 w-4 sm:mr-2" />
+                            <span className="hidden sm:inline">{t.settings?.tabs?.about || "About"}</span>
                         </TabsTrigger>
                     </TabsList>
 
@@ -463,7 +620,7 @@ export function SettingsDialog() {
                                     <Label>{t.settings?.tabs?.ai || "AI Provider"}</Label>
                                     <Select
                                         value={config.aiProvider}
-                                        onValueChange={(val: 'gemini' | 'openai') => setConfig(prev => ({ ...prev, aiProvider: val }))}
+                                        onValueChange={(val: 'gemini' | 'openai' | 'azure') => setConfig(prev => ({ ...prev, aiProvider: val }))}
                                     >
                                         <SelectTrigger>
                                             <SelectValue />
@@ -471,52 +628,130 @@ export function SettingsDialog() {
                                         <SelectContent>
                                             <SelectItem value="gemini">Google Gemini</SelectItem>
                                             <SelectItem value="openai">OpenAI / Compatible</SelectItem>
+                                            <SelectItem value="azure">Azure OpenAI</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
 
                                 {config.aiProvider === 'openai' && (
                                     <div className="space-y-3 animate-in fade-in slide-in-from-top-2">
+                                        {/* 实例选择器 */}
                                         <div className="space-y-2">
-                                            <Label>API Key</Label>
-                                            <div className="relative">
-                                                <Input
-                                                    type={showApiKey ? "text" : "password"}
-                                                    value={config.openai?.apiKey || ''}
-                                                    onChange={(e) => updateConfig('openai', 'apiKey', e.target.value)}
-                                                    placeholder="sk-..."
-                                                    className="pr-10"
-                                                />
+                                            <div className="flex items-center justify-between">
+                                                <Label>{t.settings?.ai?.instances || "Instance"}</Label>
                                                 <Button
                                                     type="button"
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                                                    onClick={() => setShowApiKey(!showApiKey)}
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={addOpenAIInstance}
+                                                    disabled={(config.openai?.instances?.length || 0) >= MAX_OPENAI_INSTANCES}
+                                                    className="h-7 px-2 text-xs"
                                                 >
-                                                    {showApiKey ? (
-                                                        <EyeOff className="h-4 w-4 text-muted-foreground" />
-                                                    ) : (
-                                                        <Eye className="h-4 w-4 text-muted-foreground" />
-                                                    )}
+                                                    <Plus className="h-3 w-3 mr-1" />
+                                                    {t.settings?.ai?.addInstance || "Add"}
                                                 </Button>
                                             </div>
+                                            {(config.openai?.instances?.length || 0) > 0 ? (
+                                                <div className="flex gap-2">
+                                                    <Select
+                                                        value={selectedInstanceId || config.openai?.activeInstanceId || ''}
+                                                        onValueChange={setActiveOpenAIInstance}
+                                                    >
+                                                        <SelectTrigger className="flex-1">
+                                                            <SelectValue placeholder={t.settings?.ai?.selectInstance || "Select Instance"} />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {(config.openai?.instances || []).map((instance) => (
+                                                                <SelectItem key={instance.id} value={instance.id}>
+                                                                    {instance.name}
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                    {(config.openai?.instances?.length || 0) > 1 && (
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            size="icon"
+                                                            onClick={() => {
+                                                                const activeId = selectedInstanceId || config.openai?.activeInstanceId;
+                                                                if (activeId && confirm(t.settings?.ai?.confirmDelete || 'Delete this instance?')) {
+                                                                    deleteOpenAIInstance(activeId);
+                                                                }
+                                                            }}
+                                                            className="h-10 w-10 text-destructive hover:text-destructive"
+                                                        >
+                                                            <Trash2 className="h-4 w-4" />
+                                                        </Button>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <p className="text-sm text-muted-foreground">
+                                                    {t.settings?.ai?.noInstances || "No instances configured. Click 'Add' to create one."}
+                                                </p>
+                                            )}
+                                            {(config.openai?.instances?.length || 0) >= MAX_OPENAI_INSTANCES && (
+                                                <p className="text-xs text-amber-600">
+                                                    {t.settings?.ai?.maxInstancesReached || "Maximum instances reached (10)"}
+                                                </p>
+                                            )}
                                         </div>
-                                        <div className="space-y-2">
-                                            <Label>Base URL (Optional)</Label>
-                                            <Input
-                                                value={config.openai?.baseUrl || ''}
-                                                onChange={(e) => updateConfig('openai', 'baseUrl', e.target.value)}
-                                                placeholder="https://api.openai.com/v1"
-                                            />
-                                        </div>
-                                        <ModelSelector
-                                            provider="openai"
-                                            apiKey={config.openai?.apiKey}
-                                            baseUrl={config.openai?.baseUrl}
-                                            currentModel={config.openai?.model}
-                                            onModelChange={(model) => updateConfig('openai', 'model', model)}
-                                        />
+
+                                        {/* 实例配置表单 */}
+                                        {getSelectedInstance() && (
+                                            <div className="space-y-3 p-3 border rounded-md bg-background">
+                                                <div className="space-y-2">
+                                                    <Label>{t.settings?.ai?.instanceName || "Instance Name"} <span className="text-destructive">*</span></Label>
+                                                    <Input
+                                                        value={getSelectedInstance()?.name || ''}
+                                                        onChange={(e) => updateOpenAIInstance('name', e.target.value)}
+                                                        placeholder="e.g. 智谱 GLM-4V"
+                                                        className={!getSelectedInstance()?.name?.trim() ? 'border-destructive' : ''}
+                                                    />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label>API Key <span className="text-destructive">*</span></Label>
+                                                    <div className="relative">
+                                                        <Input
+                                                            type={showApiKey ? "text" : "password"}
+                                                            value={getSelectedInstance()?.apiKey || ''}
+                                                            onChange={(e) => updateOpenAIInstance('apiKey', e.target.value)}
+                                                            placeholder="sk-..."
+                                                            className={`pr-10 ${!getSelectedInstance()?.apiKey?.trim() ? 'border-destructive' : ''}`}
+                                                        />
+                                                        <Button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                                                            onClick={() => setShowApiKey(!showApiKey)}
+                                                        >
+                                                            {showApiKey ? (
+                                                                <EyeOff className="h-4 w-4 text-muted-foreground" />
+                                                            ) : (
+                                                                <Eye className="h-4 w-4 text-muted-foreground" />
+                                                            )}
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label>Base URL <span className="text-destructive">*</span></Label>
+                                                    <Input
+                                                        value={getSelectedInstance()?.baseUrl || ''}
+                                                        onChange={(e) => updateOpenAIInstance('baseUrl', e.target.value)}
+                                                        placeholder="https://api.openai.com/v1"
+                                                        className={!getSelectedInstance()?.baseUrl?.trim() ? 'border-destructive' : ''}
+                                                    />
+                                                </div>
+                                                <ModelSelector
+                                                    provider="openai"
+                                                    apiKey={getSelectedInstance()?.apiKey}
+                                                    baseUrl={getSelectedInstance()?.baseUrl}
+                                                    currentModel={getSelectedInstance()?.model}
+                                                    onModelChange={(model) => updateOpenAIInstance('model', model)}
+                                                />
+                                            </div>
+                                        )}
                                     </div>
                                 )}
 
@@ -562,6 +797,70 @@ export function SettingsDialog() {
                                             currentModel={config.gemini?.model}
                                             onModelChange={(model) => updateConfig('gemini', 'model', model)}
                                         />
+                                    </div>
+                                )}
+
+                                {config.aiProvider === 'azure' && (
+                                    <div className="space-y-3 animate-in fade-in slide-in-from-top-2">
+                                        <div className="space-y-2">
+                                            <Label>{t.settings?.ai?.azureEndpoint || "Azure Endpoint"} <span className="text-destructive">*</span></Label>
+                                            <Input
+                                                value={config.azure?.endpoint || ''}
+                                                onChange={(e) => setConfig(prev => ({ ...prev, azure: { ...prev.azure, endpoint: e.target.value } }))}
+                                                placeholder={t.settings?.ai?.azureEndpointPlaceholder || "https://your-resource.openai.azure.com"}
+                                                className={!config.azure?.endpoint?.trim() ? 'border-destructive' : ''}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>{t.settings?.ai?.azureDeployment || "Deployment Name"} <span className="text-destructive">*</span></Label>
+                                            <Input
+                                                value={config.azure?.deploymentName || ''}
+                                                onChange={(e) => setConfig(prev => ({ ...prev, azure: { ...prev.azure, deploymentName: e.target.value } }))}
+                                                placeholder={t.settings?.ai?.azureDeploymentPlaceholder || "gpt-4o-deployment"}
+                                                className={!config.azure?.deploymentName?.trim() ? 'border-destructive' : ''}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>API Key <span className="text-destructive">*</span></Label>
+                                            <div className="relative">
+                                                <Input
+                                                    type={showApiKey ? "text" : "password"}
+                                                    value={config.azure?.apiKey || ''}
+                                                    onChange={(e) => setConfig(prev => ({ ...prev, azure: { ...prev.azure, apiKey: e.target.value } }))}
+                                                    placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                                                    className={`pr-10 ${!config.azure?.apiKey?.trim() ? 'border-destructive' : ''}`}
+                                                />
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                                                    onClick={() => setShowApiKey(!showApiKey)}
+                                                >
+                                                    {showApiKey ? (
+                                                        <EyeOff className="h-4 w-4 text-muted-foreground" />
+                                                    ) : (
+                                                        <Eye className="h-4 w-4 text-muted-foreground" />
+                                                    )}
+                                                </Button>
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>{t.settings?.ai?.azureApiVersion || "API Version"}</Label>
+                                            <Input
+                                                value={config.azure?.apiVersion || ''}
+                                                onChange={(e) => setConfig(prev => ({ ...prev, azure: { ...prev.azure, apiVersion: e.target.value } }))}
+                                                placeholder={t.settings?.ai?.azureApiVersionPlaceholder || "2024-02-15-preview"}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>{t.settings?.ai?.azureModel || "Model Display Name"}</Label>
+                                            <Input
+                                                value={config.azure?.model || ''}
+                                                onChange={(e) => setConfig(prev => ({ ...prev, azure: { ...prev.azure, model: e.target.value } }))}
+                                                placeholder="gpt-4o"
+                                            />
+                                        </div>
                                     </div>
                                 )}
 
@@ -700,6 +999,53 @@ export function SettingsDialog() {
                                     </div>
                                 </>
                             )}
+                        </div>
+                    </TabsContent>
+
+                    {/* About Tab */}
+                    <TabsContent value="about" className="space-y-4 py-4">
+                        <div className="flex flex-col items-center justify-center space-y-6 py-8 text-center bg-muted/30 rounded-lg border">
+                            <div className="space-y-2">
+                                <h3 className="text-2xl font-bold">{t.app?.title || "Smart Error Notebook"}</h3>
+                                <p className="text-muted-foreground">
+                                    {t.settings?.about?.desc || "AI-powered learning assistant"}
+                                </p>
+                            </div>
+
+                            <div className="flex items-center space-x-2 text-sm text-muted-foreground border px-4 py-2 rounded-full bg-background">
+                                <Info className="h-4 w-4" />
+                                <span>{t.settings?.about?.version || "Version"}: v{packageJson.version}</span>
+                            </div>
+
+                            <div className="flex flex-col sm:flex-row flex-wrap justify-center gap-4 w-full sm:w-auto px-4 sm:px-0">
+                                <Button variant="outline" asChild className="gap-2 w-full sm:w-auto">
+                                    <a href="https://github.com/wttwins/wrong-notebook" target="_blank" rel="noopener noreferrer">
+                                        <Github className="h-4 w-4" />
+                                        {t.settings?.about?.github || "GitHub Repository"}
+                                        <ExternalLink className="h-3 w-3 ml-1 opacity-50" />
+                                    </a>
+                                </Button>
+
+                                <Button variant="outline" asChild className="gap-2 w-full sm:w-auto">
+                                    <a href="https://github.com/wttwins/wrong-notebook/releases" target="_blank" rel="noopener noreferrer">
+                                        <ScrollText className="h-4 w-4" />
+                                        {t.settings?.about?.releaseNotes || "Release Notes"}
+                                        <ExternalLink className="h-3 w-3 ml-1 opacity-50" />
+                                    </a>
+                                </Button>
+
+                                <Button variant="outline" asChild className="gap-2 w-full sm:w-auto">
+                                    <a href="https://github.com/wttwins/wrong-notebook/issues" target="_blank" rel="noopener noreferrer">
+                                        <MessageSquareText className="h-4 w-4" />
+                                        {t.settings?.about?.feedback || "Feedback"}
+                                        <ExternalLink className="h-3 w-3 ml-1 opacity-50" />
+                                    </a>
+                                </Button>
+                            </div>
+
+                            <p className="text-xs text-muted-foreground mt-8">
+                                {t.settings?.about?.copyright || "© 2025 Wttwins. All rights reserved."}
+                            </p>
                         </div>
                     </TabsContent>
 

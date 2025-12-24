@@ -34,24 +34,12 @@ export function calculateGrade(
 
     const stageMapEn: Record<string, string[]> = {
         primary: ["Grade 1", "Grade 2", "Grade 3", "Grade 4", "Grade 5", "Grade 6"],
-        junior_high: ["Grade 7", "Grade 8", "Grade 9"], // Or Junior High Grade 1... let's use Grade 7-9 for simplicity or keep previous logic
-        senior_high: ["Grade 10", "Grade 11", "Grade 12"],
-        university: ["Freshman", "Sophomore", "Junior", "Senior"],
-    };
-
-    // Override English mapping to match previous logic if preferred, or standard international
-    // Previous logic was "Grade 1" for Junior High. Let's stick to that for consistency if user wants "Junior High Grade 1"
-    // But "Grade 7" is more common internationally. 
-    // However, user request specifically asked for "初一" (Junior High Grade 1).
-    // Let's use the previous style for English but localized for Chinese.
-    const stageMapEnLegacy: Record<string, string[]> = {
-        primary: ["Grade 1", "Grade 2", "Grade 3", "Grade 4", "Grade 5", "Grade 6"],
         junior_high: ["Junior High Grade 1", "Junior High Grade 2", "Junior High Grade 3"],
         senior_high: ["Senior High Grade 1", "Senior High Grade 2", "Senior High Grade 3"],
         university: ["Freshman", "Sophomore", "Junior", "Senior"],
     };
 
-    const stageMap = isZh ? stageMapZh : stageMapEnLegacy;
+    const stageMap = isZh ? stageMapZh : stageMapEn;
 
     const grades = stageMap[educationStage] || [];
 

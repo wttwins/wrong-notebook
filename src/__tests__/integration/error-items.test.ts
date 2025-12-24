@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
     mockPrismaErrorItem: {
         create: vi.fn(),
         findUnique: vi.fn(),
+        findFirst: vi.fn(), // 用于去重检查
         findMany: vi.fn(),
         update: vi.fn(),
         delete: vi.fn(),
@@ -99,6 +100,9 @@ describe('/api/error-items', () => {
             id: `tag-new-${Date.now()}`,
             ...args.data,
         }));
+
+        // Default: errorItem.findFirst returns null (no duplicate found)
+        mocks.mockPrismaErrorItem.findFirst.mockResolvedValue(null);
     });
 
     describe('POST /api/error-items (创建错题)', () => {
@@ -459,7 +463,7 @@ describe('/api/error-items', () => {
             expect(data.items).toHaveLength(2);
             expect(data.total).toBe(2);
             expect(data.page).toBe(1);
-            expect(data.pageSize).toBe(20);
+            expect(data.pageSize).toBe(18);
             expect(data.totalPages).toBe(1);
         });
 
@@ -491,10 +495,15 @@ describe('/api/error-items', () => {
             const response = await GET_LIST(request);
 
             expect(response.status).toBe(200);
+            // 搜索条件现在被包装在 AND 数组中，以便与其他筛选条件正确组合
             expect(mocks.mockPrismaErrorItem.findMany).toHaveBeenCalledWith(
                 expect.objectContaining({
                     where: expect.objectContaining({
-                        OR: expect.any(Array),
+                        AND: expect.arrayContaining([
+                            expect.objectContaining({
+                                OR: expect.any(Array),
+                            }),
+                        ]),
                     }),
                 })
             );

@@ -6,12 +6,12 @@
  */
 
 /**
- * 根据教育阶段和入学年份计算当前年级
+ * 根据教育阶段和入学年份计算当前年级数字
  * @param educationStage 教育阶段 ('junior_high' | 'senior_high')
  * @param enrollmentYear 入学年份
  * @returns 年级 (7-12) 或 null
  */
-export function calculateGrade(
+export function calculateGradeNumber(
     educationStage: string | null,
     enrollmentYear: number | null
 ): 7 | 8 | 9 | 10 | 11 | 12 | null {
@@ -57,7 +57,7 @@ export function calculateGrade(
  * @param subjectName 错题本名称
  * @returns 学科标识
  */
-export function inferSubjectFromName(subjectName: string | null): 'math' | 'physics' | 'chemistry' | 'biology' | 'english' | null {
+export function inferSubjectFromName(subjectName: string | null): 'math' | 'physics' | 'chemistry' | 'biology' | 'english' | 'chinese' | 'history' | 'geography' | 'politics' | null {
     if (!subjectName) return null;
 
     const lowerName = subjectName.toLowerCase();
@@ -67,6 +67,10 @@ export function inferSubjectFromName(subjectName: string | null): 'math' | 'phys
     if (lowerName.includes('chemistry') || lowerName.includes('化学')) return 'chemistry';
     if (lowerName.includes('biology') || lowerName.includes('生物')) return 'biology';
     if (lowerName.includes('english') || lowerName.includes('英语')) return 'english';
+    if (lowerName.includes('chinese') || lowerName.includes('语文')) return 'chinese';
+    if (lowerName.includes('history') || lowerName.includes('历史')) return 'history';
+    if (lowerName.includes('geography') || lowerName.includes('地理')) return 'geography';
+    if (lowerName.includes('politics') || lowerName.includes('政治')) return 'politics';
 
     return null;
 }

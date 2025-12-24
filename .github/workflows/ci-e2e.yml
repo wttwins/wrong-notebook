@@ -10,8 +10,17 @@ on:
       - 'prisma/**'
       - 'e2e/**'
       - 'playwright.config.ts'
+      - '.github/workflows/**'
   pull_request:
     branches: [ main ]
+    paths:
+      - 'src/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'prisma/**'
+      - 'e2e/**'
+      - 'playwright.config.ts'
+      - '.github/workflows/**'
   workflow_dispatch:
 
 jobs:

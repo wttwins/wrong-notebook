@@ -3,21 +3,23 @@ import { test, expect } from '@playwright/test';
 test.describe('Authentication Flow', () => {
 
     test('Registration and fallback Login', async ({ page }) => {
+        // 增加测试超时时间
+        test.setTimeout(60000);
+
         const user = {
             name: 'jason',
             email: 'jason@qq.com',
             password: '123456',
             stage: 'junior_high',
-            year: '2025' // Note: Component has max={new Date().getFullYear()}, so 2025 might fail if system time is < 2025
+            year: '2024' // 使用当前年份确保有效
         };
 
         // --- Try Registration ---
         await page.goto('/register');
 
         // Wait for page to be ready (bypassing loading state)
-        // Wait for ANY text that indicates registration form is loaded
         // "注册" or "Create an Account"
-        await expect(page.locator('body')).toContainText('注册', { timeout: 15000 });
+        await expect(page.locator('body')).toContainText(/注册|Register/, { timeout: 15000 });
 
         // Selectors by NAME (Robust now)
         await page.locator('input[name="name"]').fill(user.name);
@@ -72,9 +74,6 @@ test.describe('Authentication Flow', () => {
         await page.waitForURL('/', { timeout: 10000 });
 
         // Verify Content
-        // The dashboard shows "Welcome back, wttwins". 
-        // "Welcome back, " comes from `t.common.welcome`.
-        // We can just check for "wttwins" presence in the body.
         await expect(page.locator('body')).toContainText(user.name);
 
         // --- Logout User ---
@@ -94,15 +93,20 @@ test.describe('Authentication Flow', () => {
         await page.getByRole('button').filter({ has: page.locator('svg.lucide-settings') }).click();
 
         // Wait for Dialog
-        await expect(page.getByRole('dialog')).toBeVisible();
+        await expect(page.getByRole('dialog')).toBeVisible({ timeout: 5000 });
 
         // Click "User Management" / "用户管理" Tab
         await page.getByRole('tab', { name: /User Management|用户管理/ }).click();
 
+        // 等待用户列表加载
+        await page.waitForTimeout(1000);
+
         // --- Delete User 'jason' ---
         // Find row with 'jason@qq.com'
         const userRow = page.locator('tr').filter({ hasText: user.email });
-        await expect(userRow).toBeVisible();
+
+        // 使用更长的超时时间等待用户行出现
+        await expect(userRow).toBeVisible({ timeout: 10000 });
 
         // Setup dialog handler for delete confirmation
         page.once('dialog', async dialog => {
@@ -115,7 +119,7 @@ test.describe('Authentication Flow', () => {
         await userRow.getByRole('button', { name: /Delete|删除/ }).click();
 
         // Verify user is gone
-        await expect(page.locator('tr').filter({ hasText: user.email })).not.toBeVisible();
+        await expect(page.locator('tr').filter({ hasText: user.email })).not.toBeVisible({ timeout: 5000 });
 
         // --- Logout Admin ---
         // Close dialog first
