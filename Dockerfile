@@ -1,4 +1,11 @@
-FROM node:22-alpine AS base
+# Use 1Panel Docker mirror for China
+FROM docker.1panel.live/library/node:22-alpine AS base
+
+# Configure Tsinghua Alpine mirror
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/repositories
+
+# Configure Alibaba npm mirror
+RUN npm config set registry https://registry.npmmirror.com
 
 # Install dependencies only when needed
 FROM base AS deps
@@ -57,7 +64,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.prisma ./node_modul
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/prisma ./node_modules/prisma
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma ./node_modules/@prisma
 
-COPY --from=builder /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 
 # Automatically leverage output traces to reduce image size
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./

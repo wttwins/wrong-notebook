@@ -2,7 +2,9 @@ version: '3'
 
 services:
   wrong-notebook:
-    image: ghcr.io/wttwins/wrong-notebook:latest
+    # 使用本地构建的镜像
+    build: .
+    image: wrong-notebook:latest
     container_name: wrong-notebook
     restart: always
     ports:
@@ -10,7 +12,7 @@ services:
     environment:
       # NEXTAUTH_URL 根据实际情况设置你的信息
       #- NEXTAUTH_URL=http://your_domain_name:3000
-      - NEXTAUTH_SECRET=your_secret_key
+      - NEXTAUTH_SECRET=99jSHte1t8YTE2nsiJeCJFJcUnY2rcQNNCJ5/V5Fe8E=
     volumes:
       # Persist the SQLite database
       - ./data:/app/data

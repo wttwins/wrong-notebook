@@ -453,6 +453,16 @@ export const translations = {
             nameEmail: "Name/Email",
             errors: "Errors",
             practiceCount: "Practice",
+            createUser: {
+                button: "Add User",
+                title: "Create New User",
+                desc: "Create a new user account manually",
+                passwordPlaceholder: "At least 6 characters",
+                namePlaceholder: "Optional",
+                submit: "Create",
+                emailRequired: "Email and password are required",
+                passwordTooShort: "Password must be at least 6 characters",
+            },
         },
         auth: {
             email: "Email",
@@ -983,6 +993,16 @@ export const translations = {
             nameEmail: "姓名/邮箱",
             errors: "错题",
             practiceCount: "练习",
+            createUser: {
+                button: "添加用户",
+                title: "创建新用户",
+                desc: "手动创建一个新的用户账号",
+                passwordPlaceholder: "至少6个字符",
+                namePlaceholder: "可选",
+                submit: "创建",
+                emailRequired: "邮箱和密码为必填项",
+                passwordTooShort: "密码至少需要6个字符",
+            },
         },
         auth: {
             email: "邮箱",

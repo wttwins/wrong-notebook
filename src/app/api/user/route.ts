@@ -57,6 +57,17 @@ export async function PATCH(req: Request) {
     }
 
     try {
+        // 先检查用户是否存在
+        const existingUser = await prisma.user.findUnique({
+            where: { email: session.user.email },
+            select: { id: true }
+        });
+
+        if (!existingUser) {
+            logger.warn({ email: session.user.email }, 'User not found for update');
+            return notFound("User not found");
+        }
+
         const body = await req.json();
         const { name, email, password, educationStage, enrollmentYear } = userUpdateSchema.parse(body);
 
