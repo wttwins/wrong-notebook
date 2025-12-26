@@ -84,6 +84,12 @@ export const translations = {
             support: "Support JPG, PNG (Max 5MB)",
             analyze: "Analyze with AI",
             // analyzing: "Analyzing...", // Moved to app
+             screenshot: "Screenshot",
+            screenshotDesc: "Capture screen content (select 'This Tab' to avoid switching)",
+            screenshotNotSupported: "Screenshot not supported in this browser",
+            screenshotFailed: "Screenshot failed",
+            screenshotPermissionDenied: "Screenshot permission denied",
+            screenshotComplete: "Screenshot captured! Returning to upload page...",
         },
         editor: {
             title: "Review & Correct",
@@ -614,6 +620,12 @@ export const translations = {
             support: "支持 JPG, PNG (最大 5MB)",
             analyze: "AI 智能解析",
             // analyzing: "解析中...", // Moved to app
+            screenshot: "屏幕截图",
+            screenshotDesc: "捕获屏幕内容（建议选择‘整个屏幕’或‘窗口’以获得最佳效果）",
+            screenshotNotSupported: "此浏览器不支持屏幕截图",
+            screenshotFailed: "截图失败",
+            screenshotPermissionDenied: "截图权限被拒绝",
+            screenshotComplete: "截图完成！正在返回上传页面...",
         },
         editor: {
             title: "校对与保存",
