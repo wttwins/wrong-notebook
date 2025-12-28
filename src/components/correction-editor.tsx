@@ -37,7 +37,6 @@ interface CorrectionEditorProps {
 export function CorrectionEditor({ initialData, onSave, onCancel, imagePreview, initialSubjectId, aiTimeout }: CorrectionEditorProps) {
     const [data, setData] = useState<ParsedQuestionWithSubject>({
         ...initialData,
-        ...initialData,
         subjectId: initialSubjectId,
         gradeSemester: "",
         paperLevel: "a"
@@ -95,7 +94,7 @@ export function CorrectionEditor({ initialData, onSave, onCancel, imagePreview, 
 
             frontendLogger.info('[Reanswer]', 'Sending request', { timeout: aiTimeout });
 
-            const result = await apiClient.post<{ answerText: string; analysis: string; knowledgePoints: string[] }>("/api/reanswer", requestBody, { timeout: aiTimeout });
+            const result = await apiClient.post<{ answerText: string; analysis: string; knowledgePoints: string[] }>("/api/reanswer", requestBody, { timeout: aiTimeout || 180000 });
 
             setData(prev => ({
                 ...prev,

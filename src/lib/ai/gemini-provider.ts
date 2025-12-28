@@ -42,7 +42,7 @@ export class GeminiProvider implements AIService {
     }
 
     private async retryOperation<T>(operation: () => Promise<T>, maxRetries: number = 3): Promise<T> {
-        let lastError: any;
+        let lastError: unknown;
 
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
             try {

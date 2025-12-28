@@ -484,7 +484,6 @@ export function SettingsDialog() {
                                 </Select>
                             </div>
 
-
                             <div className="space-y-2 pt-4 border-t">
                                 <Label>{t.settings?.general?.timeoutLabel || "AI Analysis Timeout (Seconds)"}</Label>
                                 <Input
@@ -1076,9 +1075,8 @@ export function SettingsDialog() {
                             </p>
                         </div>
                     </TabsContent>
-
-                </Tabs >
-            </DialogContent >
-        </Dialog >
+                </Tabs>
+            </DialogContent>
+        </Dialog>
     );
 }

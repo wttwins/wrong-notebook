@@ -1,5 +1,4 @@
-
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock dependencies
 vi.mock('@google/genai', () => {
@@ -42,12 +41,14 @@ import { GeminiProvider } from '@/lib/ai/gemini-provider';
 
 describe('GeminiProvider Retry Logic', () => {
     let provider: GeminiProvider;
-    let mockGenerateContent: any;
+    let mockGenerateContent: ReturnType<typeof vi.fn>;
 
     beforeEach(() => {
         vi.clearAllMocks();
+        // Use fake timers with auto-advance to avoid manual timer management issues
+        vi.useFakeTimers({ shouldAdvanceTime: true });
         provider = new GeminiProvider({ apiKey: 'test-key' });
-        // @ts-ignore
+        // @ts-expect-error - accessing private property for testing
         mockGenerateContent = provider.ai.models.generateContent;
     });
 
@@ -56,24 +57,19 @@ describe('GeminiProvider Retry Logic', () => {
     });
 
     it('should retry on network error and eventually succeed', async () => {
-        vi.useFakeTimers();
-
         mockGenerateContent
             .mockRejectedValueOnce(new Error('fetch failed'))
             .mockRejectedValueOnce(new Error('network timeout'))
-            .mockResolvedValue({
+            .mockResolvedValueOnce({
                 text: '<question_text>Q</question_text><answer_text>A</answer_text><analysis>An</analysis><subject>数学</subject>',
                 usageMetadata: {}
             });
 
-        const promise = provider.analyzeImage('base64data');
-
-        // Advance timers to trigger retries
-        await vi.runAllTimersAsync();
-
-        const result = await promise;
+        // With shouldAdvanceTime: true, fake timers will auto-advance
+        const result = await provider.analyzeImage('base64data');
 
         expect(result).toBeDefined();
+        expect(result.questionText).toBe('Q');
         // Initial call + 2 retries = 3 calls
         expect(mockGenerateContent).toHaveBeenCalledTimes(3);
     });
@@ -81,30 +77,52 @@ describe('GeminiProvider Retry Logic', () => {
     it('should throw immediately on non-retryable error', async () => {
         mockGenerateContent.mockRejectedValue(new Error('AI_AUTH_ERROR: Invalid API Key'));
 
-        // No need for fake timers as it should fail immediately
+        // Should fail immediately without retrying
         await expect(provider.analyzeImage('base64data'))
             .rejects
             .toThrow('AI_AUTH_ERROR');
 
+        // Only 1 call, no retries for auth errors
         expect(mockGenerateContent).toHaveBeenCalledTimes(1);
     });
 
     it('should give up after max retries', async () => {
-        vi.useFakeTimers();
-
         mockGenerateContent.mockRejectedValue(new Error('fetch failed'));
 
-        const promise = provider.analyzeImage('base64data');
+        // With shouldAdvanceTime: true, fake timers will auto-advance through all retries
+        await expect(provider.analyzeImage('base64data'))
+            .rejects
+            .toThrow('AI_CONNECTION_FAILED');
 
-        // Attach the expectation promise BEFORE triggering the timers that cause the rejection
-        const validationPromise = expect(promise).rejects.toThrow('AI_CONNECTION_FAILED');
-
-        // Advance time to exhaust all retries
-        await vi.runAllTimersAsync();
-
-        // Await the validation
-        await validationPromise;
-
+        // 3 attempts total (1 initial + 2 retries)
         expect(mockGenerateContent).toHaveBeenCalledTimes(3);
+    });
+
+    it('should retry on 503 service unavailable', async () => {
+        mockGenerateContent
+            .mockRejectedValueOnce(new Error('503 Service Unavailable'))
+            .mockResolvedValueOnce({
+                text: '<question_text>Q</question_text><answer_text>A</answer_text><analysis>An</analysis><subject>数学</subject>',
+                usageMetadata: {}
+            });
+
+        const result = await provider.analyzeImage('base64data');
+
+        expect(result).toBeDefined();
+        expect(mockGenerateContent).toHaveBeenCalledTimes(2);
+    });
+
+    it('should retry on connection reset', async () => {
+        mockGenerateContent
+            .mockRejectedValueOnce(new Error('ECONNRESET'))
+            .mockResolvedValueOnce({
+                text: '<question_text>Q</question_text><answer_text>A</answer_text><analysis>An</analysis><subject>数学</subject>',
+                usageMetadata: {}
+            });
+
+        const result = await provider.analyzeImage('base64data');
+
+        expect(result).toBeDefined();
+        expect(mockGenerateContent).toHaveBeenCalledTimes(2);
     });
 });

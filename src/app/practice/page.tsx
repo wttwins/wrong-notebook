@@ -68,7 +68,7 @@ function PracticeContent() {
                 errorItemId,
                 language,
                 difficulty
-            }, { timeout: config?.timeouts?.analyze || 180000 });
+            }, { timeout });
             setQuestion(data);
         } catch (error: any) {
             console.error(error);
