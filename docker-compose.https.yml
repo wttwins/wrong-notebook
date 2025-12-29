@@ -1,0 +1,47 @@
+version: '3'
+
+# 内置 HTTPS 版本 - 无需额外容器
+# 
+# 使用方法:
+#   局域网（自动生成证书）:
+#     1. 设置 CERT_DOMAIN 为你的 IP 或域名
+#     2. docker-compose -f docker-compose.https.yml up -d
+#     3. 访问 https://你的IP:443
+#     4. 首次访问点击"高级→继续"
+#
+#   自定义证书:
+#     1. 将 cert.pem 和 key.pem 放入 ./certs 目录
+#     2. docker-compose -f docker-compose.https.yml up -d
+#
+#   公网 + Let's Encrypt:
+#     1. 先用 certbot 获取证书
+#     2. 复制证书到 ./certs 目录
+#     3. docker-compose -f docker-compose.https.yml up -d
+
+services:
+  wrong-notebook:
+    image: ghcr.io/wttwins/wrong-notebook:latest
+    container_name: wrong-notebook
+    restart: always
+    ports:
+      - "80:3000"    # HTTP（可选）
+      - "443:443"    # HTTPS
+    environment:
+      # === 必须配置（请修改） ===
+      # 替换为你的实际访问地址
+      - NEXTAUTH_URL=https://YOUR_IP_OR_DOMAIN
+      - NEXTAUTH_SECRET=your_secret_key_here
+      - AUTH_TRUST_HOST=true
+      
+      # === HTTPS 配置 ===
+      # 启用内置 HTTPS
+      - HTTPS_ENABLED=true
+      # 证书域名/IP（自动生成证书时使用）
+      # 设置为你的 IP 或域名，如：192.168.1.100 或 notebook.example.com
+      - CERT_DOMAIN=YOUR_IP_OR_DOMAIN
+      
+    volumes:
+      - ./data:/app/data
+      - ./config:/app/config
+      # 证书目录（自动生成或手动放入）
+      - ./certs:/app/certs

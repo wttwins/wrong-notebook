@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Save, RefreshCw, Loader2 } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { frontendLogger } from "@/lib/frontend-logger";
 import { MarkdownRenderer } from "@/components/markdown-renderer";
 import { TagInput } from "@/components/tag-input";
 import { NotebookSelector } from "@/components/notebook-selector";
@@ -30,11 +31,11 @@ interface CorrectionEditorProps {
     onCancel: () => void;
     imagePreview?: string | null;
     initialSubjectId?: string;
+    aiTimeout?: number;
 }
 
-export function CorrectionEditor({ initialData, onSave, onCancel, imagePreview, initialSubjectId }: CorrectionEditorProps) {
+export function CorrectionEditor({ initialData, onSave, onCancel, imagePreview, initialSubjectId, aiTimeout }: CorrectionEditorProps) {
     const [data, setData] = useState<ParsedQuestionWithSubject>({
-        ...initialData,
         ...initialData,
         subjectId: initialSubjectId,
         gradeSemester: "",
@@ -91,7 +92,9 @@ export function CorrectionEditor({ initialData, onSave, onCancel, imagePreview, 
                 console.log("[Reanswer] Sending text only (No image required)");
             }
 
-            const result = await apiClient.post<{ answerText: string; analysis: string; knowledgePoints: string[] }>("/api/reanswer", requestBody);
+            frontendLogger.info('[Reanswer]', 'Sending request', { timeout: aiTimeout });
+
+            const result = await apiClient.post<{ answerText: string; analysis: string; knowledgePoints: string[] }>("/api/reanswer", requestBody, { timeout: aiTimeout || 180000 });
 
             setData(prev => ({
                 ...prev,

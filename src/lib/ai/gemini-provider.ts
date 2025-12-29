@@ -1,4 +1,4 @@
-import { GoogleGenAI, setDefaultBaseUrls } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 import { AIService, ParsedQuestion, DifficultyLevel, AIConfig } from "./types";
 import { generateAnalyzePrompt, generateSimilarQuestionPrompt } from './prompts';
 import { safeParseParsedQuestion } from './schema';
@@ -21,12 +21,15 @@ export class GeminiProvider implements AIService {
             throw new Error("AI_AUTH_ERROR: GOOGLE_API_KEY is required for Gemini provider");
         }
 
-        // 如果提供了自定义 baseUrl，设置全局默认值
-        if (baseUrl) {
-            setDefaultBaseUrls({ geminiUrl: baseUrl });
-        }
+        // 使用 httpOptions.baseUrl 来配置自定义 API 地址，避免全局 setDefaultBaseUrls 的竞态条件
+        // 参考：@google/genai 的 GoogleGenAIOptions.httpOptions.baseUrl
+        this.ai = new GoogleGenAI({
+            apiKey,
+            httpOptions: baseUrl ? {
+                baseUrl: baseUrl
+            } : undefined
+        });
 
-        this.ai = new GoogleGenAI({ apiKey });
         this.modelName = config?.model || 'gemini-2.0-flash';
         this.baseUrl = baseUrl || 'https://generativelanguage.googleapis.com';
 
@@ -36,6 +39,44 @@ export class GeminiProvider implements AIService {
             baseUrl: this.baseUrl,
             apiKeyPrefix: apiKey.substring(0, 8) + '...'
         }, 'AI Provider initialized');
+    }
+
+    private async retryOperation<T>(operation: () => Promise<T>, maxRetries: number = 3): Promise<T> {
+        let lastError: unknown;
+
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                return await operation();
+            } catch (error) {
+                lastError = error;
+                const msg = error instanceof Error ? error.message.toLowerCase() : String(error);
+
+                // Identify retryable errors
+                const isRetryable =
+                    msg.includes('fetch failed') ||
+                    msg.includes('network') ||
+                    msg.includes('connect') ||
+                    msg.includes('503') ||
+                    msg.includes('502') ||  // Bad Gateway
+                    msg.includes('504') ||  // Gateway Timeout
+                    msg.includes('overloaded') ||
+                    msg.includes('timeout') ||
+                    msg.includes('etimedout') ||  // Connection timeout
+                    msg.includes('enotfound') ||  // DNS resolution failed
+                    msg.includes('econnreset') ||
+                    msg.includes('econnrefused') ||  // Connection refused
+                    msg.includes('unavailable');
+
+                if (!isRetryable || attempt === maxRetries) {
+                    throw error;
+                }
+
+                const delay = Math.pow(2, attempt - 1) * 1000; // Exponential backoff: 1s, 2s, 4s
+                logger.warn({ attempt, maxRetries, error: msg, nextRetryDelayMs: delay }, 'Gemini operation failed, retrying...');
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+        }
+        throw lastError;
     }
 
     private extractTag(text: string, tagName: string): string | null {
@@ -168,7 +209,7 @@ export class GeminiProvider implements AIService {
 
             logger.box('📤 API Request (发送给 AI 的原始请求)', JSON.stringify(requestParamsForLog, null, 2));
 
-            const response = await this.ai.models.generateContent({
+            const response = await this.retryOperation(() => this.ai.models.generateContent({
                 model: this.modelName,
                 contents: [
                     {
@@ -181,7 +222,7 @@ export class GeminiProvider implements AIService {
                         }
                     }
                 ]
-            });
+            }));
 
             logger.box('📦 Full API Response Metadata', {
                 usageMetadata: response.usageMetadata
@@ -225,10 +266,10 @@ export class GeminiProvider implements AIService {
         logger.box('📝 Full Prompt', prompt);
 
         try {
-            const response = await this.ai.models.generateContent({
+            const response = await this.retryOperation(() => this.ai.models.generateContent({
                 model: this.modelName,
                 contents: prompt
-            });
+            }));
 
             const text = response.text || '';
 
@@ -278,10 +319,10 @@ export class GeminiProvider implements AIService {
                 contents = prompt;
             }
 
-            const response = await this.ai.models.generateContent({
+            const response = await this.retryOperation(() => this.ai.models.generateContent({
                 model: this.modelName,
                 contents
-            });
+            }));
 
             const text = response.text || '';
 

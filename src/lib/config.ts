@@ -54,6 +54,9 @@ export interface AppConfig {
         instances?: ImageGenInstance[];
         activeInstanceId?: string;
     };
+    timeouts?: {
+        analyze?: number; // 毫秒
+    };
 }
 
 // 旧版 OpenAI 配置格式（用于迁移检测）
@@ -64,8 +67,8 @@ interface LegacyOpenAIConfig {
 }
 
 // 检测是否为旧版配置格式
-function isLegacyOpenAIConfig(config: any): config is LegacyOpenAIConfig {
-    if (!config) return false;
+function isLegacyOpenAIConfig(config: unknown): config is LegacyOpenAIConfig {
+    if (!config || typeof config !== 'object') return false;
     // 旧版配置包含 apiKey 直接字段，而新版包含 instances 数组
     return 'apiKey' in config && !('instances' in config);
 }
@@ -134,6 +137,9 @@ const DEFAULT_CONFIG: AppConfig = {
         instances: [],
         activeInstanceId: undefined,
     },
+    timeouts: {
+        analyze: 180000,
+    },
 };
 
 export function getAppConfig(): AppConfig {
@@ -172,6 +178,7 @@ export function getAppConfig(): AppConfig {
                     instances: userConfig.imageGen?.instances || DEFAULT_CONFIG.imageGen?.instances || [],
                     activeInstanceId: userConfig.imageGen?.activeInstanceId || DEFAULT_CONFIG.imageGen?.activeInstanceId,
                 },
+                timeouts: { ...DEFAULT_CONFIG.timeouts, ...userConfig.timeouts },
             };
         } catch (error) {
             logger.error({ error }, 'Failed to read config file');
@@ -198,6 +205,7 @@ export function updateAppConfig(newConfig: Partial<AppConfig>) {
             instances: newConfig.imageGen?.instances ?? currentConfig.imageGen?.instances ?? [],
             activeInstanceId: newConfig.imageGen?.activeInstanceId ?? currentConfig.imageGen?.activeInstanceId,
         },
+        timeouts: { ...currentConfig.timeouts, ...newConfig.timeouts },
     };
 
     try {
