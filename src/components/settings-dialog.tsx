@@ -483,6 +483,31 @@ export function SettingsDialog() {
                                     </SelectContent>
                                 </Select>
                             </div>
+
+                            <div className="space-y-2 pt-4 border-t">
+                                <Label>{t.settings?.general?.timeoutLabel || "AI Analysis Timeout (Seconds)"}</Label>
+                                <Input
+                                    type="number"
+                                    value={(config.timeouts?.analyze || 180000) / 1000}
+                                    onChange={(e) => {
+                                        const val = parseInt(e.target.value);
+                                        // Default to 60s if invalid, limit between 5s and 600s
+                                        const safeVal = (!isNaN(val) && val >= 5) ? Math.min(val, 600) : 60;
+                                        setConfig(prev => ({
+                                            ...prev,
+                                            timeouts: {
+                                                ...prev.timeouts,
+                                                analyze: safeVal * 1000
+                                            }
+                                        }));
+                                    }}
+                                    min={5}
+                                    max={600}
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                    {t.settings?.general?.timeoutDesc || "Increase this value if you experience frequent timeouts during AI analysis."}
+                                </p>
+                            </div>
                         </div>
                     </TabsContent>
 
@@ -734,7 +759,7 @@ export function SettingsDialog() {
                                                         </Button>
                                                     </div>
                                                 </div>
-                                                <div className="space-y-2">
+                                                <div className="space-y-2 pt-4 border-t">
                                                     <Label>Base URL <span className="text-destructive">*</span></Label>
                                                     <Input
                                                         value={getSelectedInstance()?.baseUrl || ''}
@@ -882,11 +907,13 @@ export function SettingsDialog() {
                     </TabsContent>
 
                     {/* Admin Tab */}
-                    {(session?.user as any)?.role === 'admin' && (
-                        <TabsContent value="admin" className="space-y-4 py-4">
-                            <UserManagement />
-                        </TabsContent>
-                    )}
+                    {
+                        (session?.user as any)?.role === 'admin' && (
+                            <TabsContent value="admin" className="space-y-4 py-4">
+                                <UserManagement />
+                            </TabsContent>
+                        )
+                    }
 
                     {/* Danger Zone Tab */}
                     <TabsContent value="danger" className="space-y-4 py-4">
@@ -1048,7 +1075,6 @@ export function SettingsDialog() {
                             </p>
                         </div>
                     </TabsContent>
-
                 </Tabs>
             </DialogContent>
         </Dialog>

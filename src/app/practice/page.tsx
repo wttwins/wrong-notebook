@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, Suspense, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { MarkdownRenderer } from "@/components/markdown-renderer";
 import { apiClient } from "@/lib/api-client";
+import { AppConfig } from "@/types/api";
+import { frontendLogger } from "@/lib/frontend-logger";
 
 export const dynamic = 'force-dynamic';
 
@@ -28,7 +30,20 @@ function PracticeContent() {
     const [notes, setNotes] = useState("");
     const [isSubmitted, setIsSubmitted] = useState(false);
     const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
+    const [config, setConfig] = useState<AppConfig | null>(null);
 
+    useEffect(() => {
+        apiClient.get<AppConfig>("/api/settings")
+            .then(data => {
+                setConfig(data);
+                if (data.timeouts?.analyze) {
+                    frontendLogger.info('[Config]', 'Loaded timeout settings', {
+                        analyze: data.timeouts.analyze
+                    });
+                }
+            })
+            .catch(err => console.error(err));
+    }, []);
 
     const [difficulty, setDifficulty] = useState<"easy" | "medium" | "hard" | "harder">("medium");
 
@@ -45,11 +60,15 @@ function PracticeContent() {
         setIsCorrect(null);
         setShowAnswer(false);
         try {
+            const timeout = config?.timeouts?.analyze || 180000;
+            frontendLogger.info('[Practice]', 'Generating question', {
+                timeout
+            });
             const data = await apiClient.post<ParsedQuestion>("/api/practice/generate", {
                 errorItemId,
                 language,
                 difficulty
-            });
+            }, { timeout });
             setQuestion(data);
         } catch (error: any) {
             console.error(error);

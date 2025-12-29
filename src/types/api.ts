@@ -78,14 +78,7 @@ export interface CreateErrorItemRequest extends ParsedQuestion {
     paperLevel?: string;
 }
 
-export interface AnalyzeResponse extends ParsedQuestion {
-    // Inherits from ParsedQuestion:
-    // questionText: string;
-    // answerText: string;
-    // analysis: string;
-    // knowledgePoints: string[];
-    // subject?: string;
-}
+export type AnalyzeResponse = ParsedQuestion;
 
 export interface UserProfile {
     id: string;
@@ -136,6 +129,9 @@ export interface AppConfig {
         analyze?: string;
         similar?: string;
     };
+    timeouts?: {
+        analyze?: number; // 毫秒
+    };
 }
 
 
@@ -149,7 +145,7 @@ export interface AnalyticsData {
 
 export interface PracticeStatsData {
     subjectStats: { name: string; value: number }[];
-    activityStats: { date: string; total: number; correct: number;[key: string]: any }[];
+    activityStats: { date: string; total: number; correct: number;[key: string]: number | string }[];
     difficultyStats: { name: string; value: number }[];
     overallStats: { total: number; correct: number; rate: string };
 }

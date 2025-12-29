@@ -61,5 +61,50 @@ else
     } || echo "[Entrypoint] Migration failed or no pending migrations."
 fi
 
+# HTTPS Setup
+CERT_DIR="/app/certs"
+CERT_FILE="$CERT_DIR/cert.pem"
+KEY_FILE="$CERT_DIR/key.pem"
+
+if [ "$HTTPS_ENABLED" = "true" ]; then
+    echo "[Entrypoint] HTTPS enabled"
+    
+    # 确保证书目录存在
+    mkdir -p "$CERT_DIR"
+    chown nextjs:nodejs "$CERT_DIR"
+    
+    # 检查证书是否存在
+    if [ ! -f "$CERT_FILE" ] || [ ! -f "$KEY_FILE" ]; then
+        echo "[Entrypoint] 证书不存在，自动生成自签名证书..."
+        
+        # 获取证书 CN（优先使用环境变量，否则使用 localhost）
+        CERT_CN="${CERT_DOMAIN:-localhost}"
+        
+        # 生成自签名证书（有效期 10 年）
+        openssl req -x509 -newkey rsa:2048 \
+            -keyout "$KEY_FILE" \
+            -out "$CERT_FILE" \
+            -days 3650 \
+            -nodes \
+            -subj "/CN=$CERT_CN" \
+            2>/dev/null
+        
+        if [ $? -eq 0 ]; then
+            echo "[Entrypoint] 自签名证书生成成功: CN=$CERT_CN"
+            chown nextjs:nodejs "$CERT_FILE" "$KEY_FILE"
+        else
+            echo "[Entrypoint] 警告: 证书生成失败，HTTPS 将不可用"
+        fi
+    else
+        echo "[Entrypoint] 使用已有证书: $CERT_FILE"
+    fi
+    
+    # 启动 HTTPS 代理
+    if [ -f "$CERT_FILE" ] && [ -f "$KEY_FILE" ]; then
+        echo "[Entrypoint] 启动 HTTPS 代理 (端口 443)..."
+        su-exec nextjs:nodejs node /app/https-server.js &
+    fi
+fi
+
 # Execute the main container command as nextjs user
 exec su-exec nextjs:nodejs "$@"

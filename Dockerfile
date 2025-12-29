@@ -84,6 +84,7 @@ RUN mkdir -p /app/data && chown -R nextjs:nodejs /app/data
 
 # Copy entrypoint script
 COPY --chown=nextjs:nodejs --chmod=755 docker-entrypoint.sh ./
+COPY --chown=nextjs:nodejs https-server.js ./
 
 EXPOSE 3000
 

@@ -9,7 +9,7 @@ import { ImageCropper } from "@/components/image-cropper";
 import { ParsedQuestion } from "@/lib/ai";
 import { UserWelcome } from "@/components/user-welcome";
 import { apiClient } from "@/lib/api-client";
-import { AnalyzeResponse, Notebook } from "@/types/api";
+import { AnalyzeResponse, Notebook, AppConfig } from "@/types/api";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { processImageFile } from "@/lib/image-utils";
@@ -34,9 +34,15 @@ function HomeContent() {
     const [notebooks, setNotebooks] = useState<{ id: string; name: string }[]>([]);
     const [autoSelectedNotebookId, setAutoSelectedNotebookId] = useState<string | null>(null);
 
+    const [config, setConfig] = useState<AppConfig | null>(null);
+
     // Cropper state
     const [croppingImage, setCroppingImage] = useState<string | null>(null);
     const [isCropperOpen, setIsCropperOpen] = useState(false);
+
+    // Timeout Config
+    const aiTimeout = config?.timeouts?.analyze || 180000;
+    const safetyTimeout = aiTimeout + 10000;
 
     // Cleanup Blob URL to prevent memory leak
     useEffect(() => {
@@ -52,6 +58,18 @@ function HomeContent() {
         apiClient.get<Notebook[]>("/api/notebooks")
             .then(data => setNotebooks(data))
             .catch(err => console.error("Failed to fetch notebooks:", err));
+
+        // Fetch settings for timeouts
+        apiClient.get<AppConfig>("/api/settings")
+            .then(data => {
+                setConfig(data);
+                if (data.timeouts?.analyze) {
+                    frontendLogger.info('[Config]', 'Loaded timeout settings', {
+                        analyze: data.timeouts.analyze
+                    });
+                }
+            })
+            .catch(err => console.error("Failed to fetch config:", err));
     }, []);
 
     // Simulate progress for smoother UX with timeout protection
@@ -67,17 +85,17 @@ function HomeContent() {
                 });
             }, 500);
 
-            // Safety timeout: auto-reset after 120s to prevent stuck overlay
+            // Safety timeout: auto-reset after configurable time to prevent stuck overlay
             timeout = setTimeout(() => {
                 console.warn('[Progress] Safety timeout triggered - resetting analysisStep');
                 setAnalysisStep('idle');
-            }, 130000); // 130 seconds (longer than API timeout of 120s)
+            }, safetyTimeout);
         }
         return () => {
             clearInterval(interval);
             clearTimeout(timeout);
         };
-    }, [analysisStep]);
+    }, [analysisStep, safetyTimeout]);
 
     const onImageSelect = (file: File) => {
         const imageUrl = URL.createObjectURL(file);
@@ -94,7 +112,12 @@ function HomeContent() {
 
     const handleAnalyze = async (file: File) => {
         const startTime = Date.now();
-        frontendLogger.info('[HomeAnalyze]', 'Starting analysis flow');
+        frontendLogger.info('[HomeAnalyze]', 'Starting analysis flow', {
+            timeoutSettings: {
+                apiTimeout: aiTimeout,
+                safetyTimeout
+            }
+        });
 
         try {
             frontendLogger.info('[HomeAnalyze]', 'Step 1/5: Compressing image');
@@ -112,7 +135,7 @@ function HomeContent() {
                 imageBase64: base64Image,
                 language: language,
                 subjectId: initialNotebookId || autoSelectedNotebookId || undefined
-            }, { timeout: 120000 }); // 2 分钟超时，匹配 Safety timeout
+            }, { timeout: aiTimeout }); // Use configured timeout
             const apiDuration = Date.now() - apiStartTime;
             frontendLogger.info('[HomeAnalyze]', 'API response received, validating data', {
                 apiDuration
@@ -381,6 +404,7 @@ function HomeContent() {
                         onCancel={() => setStep("upload")}
                         imagePreview={currentImage}
                         initialSubjectId={initialNotebookId || autoSelectedNotebookId || undefined}
+                        aiTimeout={aiTimeout}
                     />
                 )}
 
