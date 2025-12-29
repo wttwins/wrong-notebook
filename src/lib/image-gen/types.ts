@@ -35,5 +35,5 @@ export interface ImageGenConfig {
     apiKey: string;
     baseUrl?: string;
     model?: string;
-    provider: 'zhipu' | 'openai' | 'other';
+    provider: 'zhipu' | 'openai' | 'siliconflow' | 'other';
 }

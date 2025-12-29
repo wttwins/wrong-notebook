@@ -109,7 +109,7 @@ export interface OpenAIInstance {
 export interface ImageGenInstance {
     id: string;           // 唯一标识 (UUID)
     name: string;         // 用户自定义名称
-    provider: 'zhipu' | 'openai' | 'other';
+    provider: 'zhipu' | 'openai' | 'siliconflow' | 'other';
     apiKey: string;
     baseUrl?: string;     // 可选，用于自定义端点
     model?: string;       // 模型名称，如 cogview-4, dall-e-3

@@ -7,6 +7,7 @@ import { createLogger } from '../logger';
 import type { ImageGenerationService, ImageGenConfig } from './types';
 import { ZhipuImageProvider } from './zhipu-provider';
 import { OpenAIImageProvider } from './openai-provider';
+import { SiliconFlowImageProvider } from './siliconflow-provider';
 
 const logger = createLogger('image-gen');
 
@@ -39,6 +40,8 @@ export function getImageGenService(): ImageGenerationService | null {
             return new ZhipuImageProvider(config);
         case 'openai':
             return new OpenAIImageProvider(config);
+        case 'siliconflow':
+            return new SiliconFlowImageProvider(config);
         case 'other':
             // 默认使用OpenAI兼容接口
             return new OpenAIImageProvider(config);

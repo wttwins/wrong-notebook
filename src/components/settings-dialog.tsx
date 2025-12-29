@@ -737,13 +737,13 @@ export function SettingsDialog() {
                     </TabsContent>
 
                     {/* AI Tab */}
-                    <TabsContent value="ai" className="space-y-4 py-4">
+                    <TabsContent value="ai" className="py-4">
                         {loading ? (
                             <div className="flex justify-center py-4">
                                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                             </div>
                         ) : (
-                            <div className="space-y-4 border rounded-lg p-4 bg-muted/30">
+                            <div className="space-y-4 border rounded-lg p-4 bg-muted/30 max-h-[55vh] overflow-y-auto">
                                 <div className="space-y-2">
                                     <Label>{t.settings?.tabs?.ai || "AI Provider"}</Label>
                                     <Select
@@ -1096,6 +1096,7 @@ export function SettingsDialog() {
                                                             </SelectTrigger>
                                                             <SelectContent>
                                                                 <SelectItem value="zhipu">智谱 CogView</SelectItem>
+                                                                <SelectItem value="siliconflow">硅基流动 SiliconFlow</SelectItem>
                                                                 <SelectItem value="openai">OpenAI DALL-E</SelectItem>
                                                                 <SelectItem value="other">{t.settings?.ai?.imageGen?.otherProvider || "其他兼容服务"}</SelectItem>
                                                             </SelectContent>
@@ -1131,9 +1132,13 @@ export function SettingsDialog() {
                                                         <Input
                                                             value={getSelectedImageGenInstance()?.baseUrl || ''}
                                                             onChange={(e) => updateImageGenInstance('baseUrl', e.target.value)}
-                                                            placeholder={getSelectedImageGenInstance()?.provider === 'zhipu'
-                                                                ? "https://open.bigmodel.cn/api/paas/v4"
-                                                                : "https://api.openai.com/v1"}
+                                                            placeholder={
+                                                                getSelectedImageGenInstance()?.provider === 'zhipu'
+                                                                    ? "https://open.bigmodel.cn/api/paas/v4"
+                                                                    : getSelectedImageGenInstance()?.provider === 'siliconflow'
+                                                                        ? "https://api.siliconflow.cn/v1"
+                                                                        : "https://api.openai.com/v1"
+                                                            }
                                                         />
                                                     </div>
                                                     <div className="space-y-2">
@@ -1141,9 +1146,13 @@ export function SettingsDialog() {
                                                         <Input
                                                             value={getSelectedImageGenInstance()?.model || ''}
                                                             onChange={(e) => updateImageGenInstance('model', e.target.value)}
-                                                            placeholder={getSelectedImageGenInstance()?.provider === 'zhipu'
-                                                                ? "cogview-4"
-                                                                : "dall-e-3"}
+                                                            placeholder={
+                                                                getSelectedImageGenInstance()?.provider === 'zhipu'
+                                                                    ? "cogview-4"
+                                                                    : getSelectedImageGenInstance()?.provider === 'siliconflow'
+                                                                        ? "Qwen/Qwen-Image-Edit-2509"
+                                                                        : "dall-e-3"
+                                                            }
                                                         />
                                                     </div>
                                                 </div>
