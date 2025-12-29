@@ -84,6 +84,12 @@ export class AzureOpenAIProvider implements AIService {
         const knowledgePointsRaw = this.extractTag(text, "knowledge_points");
         const requiresImageRaw = this.extractTag(text, "requires_image");
 
+        // 图片生成相关标签（举一反三功能使用）
+        const questionImageRequiredRaw = this.extractTag(text, "question_image_required");
+        const questionImagePrompt = this.extractTag(text, "question_image_prompt");
+        const answerImageRequiredRaw = this.extractTag(text, "answer_image_required");
+        const answerImagePrompt = this.extractTag(text, "answer_image_prompt");
+
         // Basic Validation
         if (!questionText || !answerText || !analysis) {
             logger.error({ rawTextSample: text.substring(0, 500) }, 'Missing critical XML tags');
@@ -106,6 +112,10 @@ export class AzureOpenAIProvider implements AIService {
         // Process requiresImage
         const requiresImage = requiresImageRaw?.toLowerCase().trim() === 'true';
 
+        // Process 图片生成标记
+        const questionImageRequired = questionImageRequiredRaw?.toLowerCase().trim() === 'true';
+        const answerImageRequired = answerImageRequiredRaw?.toLowerCase().trim() === 'true';
+
         // Construct Result
         const result: ParsedQuestion = {
             questionText,
@@ -113,7 +123,12 @@ export class AzureOpenAIProvider implements AIService {
             analysis,
             subject,
             knowledgePoints,
-            requiresImage
+            requiresImage,
+            // 图片生成字段
+            questionImageRequired,
+            questionImagePrompt: questionImageRequired && questionImagePrompt ? questionImagePrompt : undefined,
+            answerImageRequired,
+            answerImagePrompt: answerImageRequired && answerImagePrompt ? answerImagePrompt : undefined,
         };
 
         // Final Schema Validation
