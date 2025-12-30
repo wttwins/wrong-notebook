@@ -106,6 +106,15 @@ export interface OpenAIInstance {
     model: string;
 }
 
+export interface ImageGenInstance {
+    id: string;           // 唯一标识 (UUID)
+    name: string;         // 用户自定义名称
+    provider: 'zhipu' | 'openai' | 'siliconflow' | 'other';
+    apiKey: string;
+    baseUrl?: string;     // 可选，用于自定义端点
+    model?: string;       // 模型名称，如 cogview-4, dall-e-3
+}
+
 export interface AppConfig {
     aiProvider: 'gemini' | 'openai' | 'azure';
     allowRegistration?: boolean;
@@ -124,6 +133,11 @@ export interface AppConfig {
         deploymentName?: string; // 部署名称
         apiVersion?: string;     // API 版本 (如 2024-02-15-preview)
         model?: string;          // 显示用模型名 (如 gpt-4o)
+    };
+    imageGen?: {
+        enabled: boolean;                    // 是否启用图片生成
+        instances?: ImageGenInstance[];      // 图片生成服务实例列表
+        activeInstanceId?: string;           // 当前激活的实例ID
     };
     prompts?: {
         analyze?: string;

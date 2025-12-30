@@ -15,6 +15,16 @@ export const ParsedQuestionSchema = z.object({
     ]),
     knowledgePoints: z.array(z.string()).max(5, "知识点最多 5 个"),
     requiresImage: z.boolean().optional().default(false), // 题目是否依赖图片（如几何题）
+
+    // 图片生成相关字段（举一反三功能使用）
+    questionImageRequired: z.boolean().optional().default(false), // AI判断题目是否需要配图
+    questionImagePrompt: z.string().optional(),                    // 题目配图的英文描述
+    answerImageRequired: z.boolean().optional().default(false),   // AI判断答案是否需要配图
+    answerImagePrompt: z.string().optional(),                      // 答案配图的英文描述
+
+    // 生成后填充的图片URL/Base64（由图片生成服务填充）
+    questionImageUrl: z.string().optional(),
+    answerImageUrl: z.string().optional(),
 });
 
 /**

@@ -74,31 +74,31 @@ export const DEFAULT_ANALYZE_TEMPLATE = `【角色与核心任务 (ROLE AND CORE
 
 export const DEFAULT_SIMILAR_TEMPLATE = `你是一位资深的K12教育题目生成专家，具备跨学科的题目创作能力。你的核心任务是**根据以下原题和知识点，举一反三生成高质量教学题目**，帮助学生巩固知识并拓展解题思路。
 ### 角色定义
-1. **学科全能专家**  
+1. **学科全能专家**
    - 精通K12阶段所有学科（数学/语文/英语/物理/化学/生物/历史/地理/政治）
    - 熟悉各年级课程标准与知识点分布
    - 能准确识别题目考察的核心能力点（计算/推理/分析/应用/创新）
-2. **题目变异大师**  
+2. **题目变异大师**
    - 掌握12种变式技法：条件替换/情境迁移/问题转化/数据重构/图形变形/角色反转/跨学科融合/难度阶梯/开放拓展/陷阱设计/逆向思维/生活应用
    - 确保变式题目保持原题核心考点，改变题目表现形式
-3. **学情分析师**  
+3. **学情分析师**
    - 预判学生易错点（认知盲区/概念混淆/计算失误/审题偏差）
    - 在变式题目中针对性强化易错点训练
 ### 执行流程
-1. **接收任务**  
+1. **接收任务**
 	原题: "{{original_question}}"
 	{{language_instruction}}
 	DIFFICULTY LEVEL: {{difficulty_level}}
 	{{difficulty_instruction}}
-	Knowledge Points: {{knowledge_points}}  
-2. **解构分析**  
+	Knowledge Points: {{knowledge_points}}
+2. **解构分析**
    - 提取核心考点与能力要求
    - 分析题目陷阱与解题路径
-3.  **质量管控**  
-   - 确保每道题：  
-     ✓ 覆盖相同核心知识点  
-     ✓ 保持解题逻辑一致性  
-     ✓ 答案唯一且可验证  
+3.  **质量管控**
+   - 确保每道题：
+     ✓ 覆盖相同核心知识点
+     ✓ 保持解题逻辑一致性
+     ✓ 答案唯一且可验证
      ✓ 无知识性错误
 ### 输出规范
 你的响应输出**必须严格遵循以下自定义标签格式**。**严禁**使用 JSON 或 Markdown 代码块。**严禁**返回 \`\`\`json ... \`\`\`。
@@ -109,9 +109,31 @@ export const DEFAULT_SIMILAR_TEMPLATE = `你是一位资深的K12教育题目生
 在此处填写新生成的题目文本。包含选项（如果是选择题）。
 </question_text>
 
+<question_image_required>
+判断新题目是否需要配图才能正确理解。如果题目涉及几何图形、函数图像、电路图、实验装置图等必须看图才能理解的内容，填写 true；否则填写 false。
+</question_image_required>
+
+<question_image_prompt>
+如果上面填写了 true，在此处用**英文**描述需要生成的图片内容，供图片生成AI使用。
+描述要简洁清晰，包含关键元素和标注。例如：
+- A right triangle ABC with angle C = 90 degrees, AB = 5cm, BC = 3cm, with all vertices labeled
+- A parabola y = x^2 - 2x - 3 on coordinate plane, showing vertex and x-intercepts
+- A simple circuit with battery, switch, and two light bulbs in series
+如果不需要配图，留空即可。
+</question_image_prompt>
+
 <answer_text>
 在此处填写新题目的正确答案。
 </answer_text>
+
+<answer_image_required>
+判断答案解析是否需要配图来辅助说明。如果解析过程需要图示（如辅助线、受力分析图等），填写 true；否则填写 false。
+</answer_image_required>
+
+<answer_image_prompt>
+如果上面填写了 true，在此处用**英文**描述需要生成的解析配图内容。
+如果不需要配图，留空即可。
+</answer_image_prompt>
 
 <analysis>
 在此处填写新题目的详细解析。

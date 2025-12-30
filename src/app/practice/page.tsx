@@ -238,6 +238,17 @@ function PracticeContent() {
                         </CardHeader>
                         <CardContent>
                             <MarkdownRenderer content={question.questionText} className="font-medium" />
+                            {/* 题目配图 */}
+                            {question.questionImageUrl && (
+                                <div className="mt-4">
+                                    <img
+                                        src={question.questionImageUrl}
+                                        alt={t.practice.questionImage || "题目配图"}
+                                        className="max-w-full rounded-lg border shadow-sm"
+                                        loading="lazy"
+                                    />
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
 
@@ -340,6 +351,17 @@ function PracticeContent() {
                                 </CardHeader>
                                 <CardContent className="space-y-4">
                                     <MarkdownRenderer content={question.analysis} />
+                                    {/* 答案/解析配图 */}
+                                    {question.answerImageUrl && (
+                                        <div className="mt-4">
+                                            <img
+                                                src={question.answerImageUrl}
+                                                alt={t.practice.analysisImage || "解析配图"}
+                                                className="max-w-full rounded-lg border shadow-sm"
+                                                loading="lazy"
+                                            />
+                                        </div>
+                                    )}
                                 </CardContent>
                             </Card>
                         </div>

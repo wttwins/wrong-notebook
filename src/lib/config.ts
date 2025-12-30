@@ -15,6 +15,16 @@ export interface OpenAIInstance {
     model: string;
 }
 
+// 图片生成服务实例配置
+export interface ImageGenInstance {
+    id: string;           // 唯一标识 (UUID)
+    name: string;         // 用户自定义名称
+    provider: 'zhipu' | 'openai' | 'siliconflow' | 'other';  // 服务商类型
+    apiKey: string;
+    baseUrl?: string;     // 可选，用于自定义端点
+    model?: string;       // 模型名称，如 cogview-4, dall-e-3
+}
+
 export interface AppConfig {
     aiProvider: 'gemini' | 'openai' | 'azure';
     allowRegistration?: boolean;
@@ -37,6 +47,12 @@ export interface AppConfig {
     prompts?: {
         analyze?: string;
         similar?: string;
+    };
+    // 图片生成服务配置
+    imageGen?: {
+        enabled: boolean;              // 是否启用图片生成
+        instances?: ImageGenInstance[];
+        activeInstanceId?: string;
     };
     timeouts?: {
         analyze?: number; // 毫秒
@@ -116,6 +132,11 @@ const DEFAULT_CONFIG: AppConfig = {
         analyze: '',
         similar: '',
     },
+    imageGen: {
+        enabled: false,
+        instances: [],
+        activeInstanceId: undefined,
+    },
     timeouts: {
         analyze: 180000,
     },
@@ -152,6 +173,11 @@ export function getAppConfig(): AppConfig {
                 gemini: { ...DEFAULT_CONFIG.gemini, ...userConfig.gemini },
                 azure: { ...DEFAULT_CONFIG.azure, ...userConfig.azure },
                 prompts: { ...DEFAULT_CONFIG.prompts, ...userConfig.prompts },
+                imageGen: {
+                    enabled: userConfig.imageGen?.enabled ?? DEFAULT_CONFIG.imageGen?.enabled ?? false,
+                    instances: userConfig.imageGen?.instances || DEFAULT_CONFIG.imageGen?.instances || [],
+                    activeInstanceId: userConfig.imageGen?.activeInstanceId || DEFAULT_CONFIG.imageGen?.activeInstanceId,
+                },
                 timeouts: { ...DEFAULT_CONFIG.timeouts, ...userConfig.timeouts },
             };
         } catch (error) {
@@ -174,6 +200,11 @@ export function updateAppConfig(newConfig: Partial<AppConfig>) {
         gemini: { ...currentConfig.gemini, ...newConfig.gemini },
         azure: { ...currentConfig.azure, ...newConfig.azure },
         prompts: { ...currentConfig.prompts, ...newConfig.prompts },
+        imageGen: {
+            enabled: newConfig.imageGen?.enabled ?? currentConfig.imageGen?.enabled ?? false,
+            instances: newConfig.imageGen?.instances ?? currentConfig.imageGen?.instances ?? [],
+            activeInstanceId: newConfig.imageGen?.activeInstanceId ?? currentConfig.imageGen?.activeInstanceId,
+        },
         timeouts: { ...currentConfig.timeouts, ...newConfig.timeouts },
     };
 
@@ -199,6 +230,23 @@ export function getActiveOpenAIConfig(): OpenAIInstance | undefined {
     return instances.find(i => i.id === activeId);
 }
 
+// 获取当前激活的图片生成服务实例配置
+export function getActiveImageGenConfig(): ImageGenInstance | undefined {
+    const config = getAppConfig();
+    if (!config.imageGen?.enabled) {
+        return undefined;
+    }
+    const instances = config.imageGen?.instances || [];
+    const activeId = config.imageGen?.activeInstanceId;
+
+    if (!activeId || instances.length === 0) {
+        return undefined;
+    }
+
+    return instances.find(i => i.id === activeId);
+}
+
 // 最大实例数限制
 export const MAX_OPENAI_INSTANCES = 10;
+export const MAX_IMAGE_GEN_INSTANCES = 10;
 

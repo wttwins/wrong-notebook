@@ -27,7 +27,7 @@ import { useSession } from "next-auth/react";
 import { UserManagement } from "@/components/admin/user-management";
 import { apiClient } from "@/lib/api-client";
 import { frontendLogger } from "@/lib/frontend-logger";
-import { AppConfig, UserProfile, UpdateUserProfileRequest, OpenAIInstance } from "@/types/api";
+import { AppConfig, UserProfile, UpdateUserProfileRequest, OpenAIInstance, ImageGenInstance } from "@/types/api";
 import { ModelSelector } from "@/components/ui/model-selector";
 import { PromptSettings } from "@/components/settings/prompt-settings";
 
@@ -35,6 +35,7 @@ import { MessageSquareText, Info, ExternalLink, Github, ScrollText } from "lucid
 import packageJson from "../../package.json";
 
 const MAX_OPENAI_INSTANCES = 10;
+const MAX_IMAGE_GEN_INSTANCES = 10;
 
 // 生成唯一 ID
 function generateId(): string {
@@ -68,6 +69,9 @@ export function SettingsDialog() {
     const [config, setConfig] = useState<AppConfig>({ aiProvider: 'gemini' });
     // OpenAI 多实例状态
     const [selectedInstanceId, setSelectedInstanceId] = useState<string | undefined>(undefined);
+    // 图片生成服务实例状态
+    const [selectedImageGenInstanceId, setSelectedImageGenInstanceId] = useState<string | undefined>(undefined);
+    const [showImageGenApiKey, setShowImageGenApiKey] = useState(false);
 
     // Profile State
     const [profile, setProfile] = useState<ProfileFormState>({
@@ -415,6 +419,105 @@ export function SettingsDialog() {
         }));
     };
 
+    // ============ 图片生成服务实例管理 ============
+
+    // 获取当前选中的图片生成实例
+    const getSelectedImageGenInstance = (): ImageGenInstance | undefined => {
+        const instances = config.imageGen?.instances || [];
+        const activeId = selectedImageGenInstanceId || config.imageGen?.activeInstanceId;
+        return instances.find(i => i.id === activeId);
+    };
+
+    // 更新当前选中的图片生成实例属性
+    const updateImageGenInstance = (key: keyof ImageGenInstance, value: string) => {
+        const instances = config.imageGen?.instances || [];
+        const activeId = selectedImageGenInstanceId || config.imageGen?.activeInstanceId;
+        const updatedInstances = instances.map(instance =>
+            instance.id === activeId ? { ...instance, [key]: value } : instance
+        );
+        setConfig(prev => ({
+            ...prev,
+            imageGen: {
+                ...prev.imageGen,
+                enabled: prev.imageGen?.enabled ?? false,
+                instances: updatedInstances,
+            }
+        }));
+    };
+
+    // 添加新的图片生成实例
+    const addImageGenInstance = () => {
+        const instances = config.imageGen?.instances || [];
+        if (instances.length >= MAX_IMAGE_GEN_INSTANCES) return;
+
+        const newInstance: ImageGenInstance = {
+            id: generateId(),
+            name: `Image Gen ${instances.length + 1}`,
+            provider: 'zhipu',
+            apiKey: '',
+            baseUrl: '',
+            model: 'cogview-4',
+        };
+
+        setConfig(prev => ({
+            ...prev,
+            imageGen: {
+                enabled: true, // 添加实例时自动启用
+                instances: [...(prev.imageGen?.instances || []), newInstance],
+                activeInstanceId: newInstance.id,
+            }
+        }));
+        setSelectedImageGenInstanceId(newInstance.id);
+    };
+
+    // 删除图片生成实例
+    const deleteImageGenInstance = (instanceId: string) => {
+        const instances = config.imageGen?.instances || [];
+        const updatedInstances = instances.filter(i => i.id !== instanceId);
+        const newActiveId = updatedInstances.length > 0 ? updatedInstances[0].id : undefined;
+
+        setConfig(prev => ({
+            ...prev,
+            imageGen: {
+                enabled: updatedInstances.length > 0 ? prev.imageGen?.enabled ?? false : false,
+                instances: updatedInstances,
+                activeInstanceId: newActiveId,
+            }
+        }));
+        setSelectedImageGenInstanceId(newActiveId);
+    };
+
+    // 切换激活的图片生成实例
+    const setActiveImageGenInstance = (instanceId: string) => {
+        setSelectedImageGenInstanceId(instanceId);
+        setConfig(prev => ({
+            ...prev,
+            imageGen: {
+                ...prev.imageGen,
+                enabled: prev.imageGen?.enabled ?? false,
+                activeInstanceId: instanceId,
+            }
+        }));
+    };
+
+    // 切换图片生成功能开关
+    const toggleImageGenEnabled = (enabled: boolean) => {
+        setConfig(prev => ({
+            ...prev,
+            imageGen: {
+                ...prev.imageGen,
+                enabled: enabled,
+            }
+        }));
+    };
+
+    // 同步 selectedImageGenInstanceId 与 config
+    useEffect(() => {
+        if (config.imageGen?.activeInstanceId && !selectedImageGenInstanceId) {
+            setSelectedImageGenInstanceId(config.imageGen.activeInstanceId);
+        }
+    }, [config.imageGen?.activeInstanceId, selectedImageGenInstanceId]);
+
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
@@ -634,13 +737,13 @@ export function SettingsDialog() {
                     </TabsContent>
 
                     {/* AI Tab */}
-                    <TabsContent value="ai" className="space-y-4 py-4">
+                    <TabsContent value="ai" className="py-4">
                         {loading ? (
                             <div className="flex justify-center py-4">
                                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                             </div>
                         ) : (
-                            <div className="space-y-4 border rounded-lg p-4 bg-muted/30">
+                            <div className="space-y-4 border rounded-lg p-4 bg-muted/30 max-h-[55vh] overflow-y-auto">
                                 <div className="space-y-2">
                                     <Label>{t.settings?.tabs?.ai || "AI Provider"}</Label>
                                     <Select
@@ -888,6 +991,175 @@ export function SettingsDialog() {
                                         </div>
                                     </div>
                                 )}
+
+                                {/* 图片生成服务配置 */}
+                                <div className="space-y-3 pt-4 border-t">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <Label className="text-base font-semibold">{t.settings?.ai?.imageGen?.title || "图片生成服务"}</Label>
+                                            <p className="text-xs text-muted-foreground mt-1">
+                                                {t.settings?.ai?.imageGen?.desc || "为举一反三功能生成题目配图"}
+                                            </p>
+                                        </div>
+                                        <label className="flex items-center cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={config.imageGen?.enabled || false}
+                                                onChange={(e) => toggleImageGenEnabled(e.target.checked)}
+                                                className="sr-only peer"
+                                            />
+                                            <div className="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                            <span className="ms-2 text-sm font-medium text-gray-700">
+                                                {config.imageGen?.enabled ? (t.settings?.ai?.imageGen?.enabled || "已启用") : (t.settings?.ai?.imageGen?.disabled || "已禁用")}
+                                            </span>
+                                        </label>
+                                    </div>
+
+                                    {config.imageGen?.enabled && (
+                                        <div className="space-y-3 animate-in fade-in slide-in-from-top-2">
+                                            {/* 实例选择器 */}
+                                            <div className="space-y-2">
+                                                <div className="flex items-center justify-between">
+                                                    <Label>{t.settings?.ai?.imageGen?.instances || "服务实例"}</Label>
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={addImageGenInstance}
+                                                        disabled={(config.imageGen?.instances?.length || 0) >= MAX_IMAGE_GEN_INSTANCES}
+                                                        className="h-7 px-2 text-xs"
+                                                    >
+                                                        <Plus className="h-3 w-3 mr-1" />
+                                                        {t.settings?.ai?.addInstance || "Add"}
+                                                    </Button>
+                                                </div>
+                                                {(config.imageGen?.instances?.length || 0) > 0 ? (
+                                                    <div className="flex gap-2">
+                                                        <Select
+                                                            value={selectedImageGenInstanceId || config.imageGen?.activeInstanceId || ''}
+                                                            onValueChange={setActiveImageGenInstance}
+                                                        >
+                                                            <SelectTrigger className="flex-1">
+                                                                <SelectValue placeholder={t.settings?.ai?.imageGen?.selectInstance || "选择实例"} />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                {(config.imageGen?.instances || []).map((instance) => (
+                                                                    <SelectItem key={instance.id} value={instance.id}>
+                                                                        {instance.name}
+                                                                    </SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
+                                                        {(config.imageGen?.instances?.length || 0) > 1 && (
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                size="icon"
+                                                                onClick={() => {
+                                                                    const activeId = selectedImageGenInstanceId || config.imageGen?.activeInstanceId;
+                                                                    if (activeId && confirm(t.settings?.ai?.confirmDelete || 'Delete this instance?')) {
+                                                                        deleteImageGenInstance(activeId);
+                                                                    }
+                                                                }}
+                                                                className="h-10 w-10 text-destructive hover:text-destructive"
+                                                            >
+                                                                <Trash2 className="h-4 w-4" />
+                                                            </Button>
+                                                        )}
+                                                    </div>
+                                                ) : (
+                                                    <p className="text-sm text-muted-foreground">
+                                                        {t.settings?.ai?.imageGen?.noInstances || "未配置实例，点击'Add'创建一个"}
+                                                    </p>
+                                                )}
+                                            </div>
+
+                                            {/* 实例配置表单 */}
+                                            {getSelectedImageGenInstance() && (
+                                                <div className="space-y-3 p-3 border rounded-md bg-background">
+                                                    <div className="space-y-2">
+                                                        <Label>{t.settings?.ai?.imageGen?.instanceName || "实例名称"} <span className="text-destructive">*</span></Label>
+                                                        <Input
+                                                            value={getSelectedImageGenInstance()?.name || ''}
+                                                            onChange={(e) => updateImageGenInstance('name', e.target.value)}
+                                                            placeholder="e.g. 智谱 CogView"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <Label>{t.settings?.ai?.imageGen?.provider || "服务商"} <span className="text-destructive">*</span></Label>
+                                                        <Select
+                                                            value={getSelectedImageGenInstance()?.provider || 'zhipu'}
+                                                            onValueChange={(val) => updateImageGenInstance('provider', val)}
+                                                        >
+                                                            <SelectTrigger>
+                                                                <SelectValue />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                <SelectItem value="zhipu">智谱 CogView</SelectItem>
+                                                                <SelectItem value="siliconflow">硅基流动 SiliconFlow</SelectItem>
+                                                                <SelectItem value="openai">OpenAI DALL-E</SelectItem>
+                                                                <SelectItem value="other">{t.settings?.ai?.imageGen?.otherProvider || "其他兼容服务"}</SelectItem>
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <Label>API Key <span className="text-destructive">*</span></Label>
+                                                        <div className="relative">
+                                                            <Input
+                                                                type={showImageGenApiKey ? "text" : "password"}
+                                                                value={getSelectedImageGenInstance()?.apiKey || ''}
+                                                                onChange={(e) => updateImageGenInstance('apiKey', e.target.value)}
+                                                                placeholder={getSelectedImageGenInstance()?.provider === 'zhipu' ? "智谱 API Key" : "sk-..."}
+                                                                className="pr-10"
+                                                            />
+                                                            <Button
+                                                                type="button"
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                                                                onClick={() => setShowImageGenApiKey(!showImageGenApiKey)}
+                                                            >
+                                                                {showImageGenApiKey ? (
+                                                                    <EyeOff className="h-4 w-4 text-muted-foreground" />
+                                                                ) : (
+                                                                    <Eye className="h-4 w-4 text-muted-foreground" />
+                                                                )}
+                                                            </Button>
+                                                        </div>
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <Label>Base URL ({t.settings?.ai?.imageGen?.optional || "可选"})</Label>
+                                                        <Input
+                                                            value={getSelectedImageGenInstance()?.baseUrl || ''}
+                                                            onChange={(e) => updateImageGenInstance('baseUrl', e.target.value)}
+                                                            placeholder={
+                                                                getSelectedImageGenInstance()?.provider === 'zhipu'
+                                                                    ? "https://open.bigmodel.cn/api/paas/v4"
+                                                                    : getSelectedImageGenInstance()?.provider === 'siliconflow'
+                                                                        ? "https://api.siliconflow.cn/v1"
+                                                                        : "https://api.openai.com/v1"
+                                                            }
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <Label>{t.settings?.ai?.imageGen?.model || "模型"}</Label>
+                                                        <Input
+                                                            value={getSelectedImageGenInstance()?.model || ''}
+                                                            onChange={(e) => updateImageGenInstance('model', e.target.value)}
+                                                            placeholder={
+                                                                getSelectedImageGenInstance()?.provider === 'zhipu'
+                                                                    ? "cogview-4"
+                                                                    : getSelectedImageGenInstance()?.provider === 'siliconflow'
+                                                                        ? "Qwen/Qwen-Image-Edit-2509"
+                                                                        : "dall-e-3"
+                                                            }
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
 
                                 <Button onClick={handleSaveSettings} disabled={saving} className="w-full">
                                     {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
