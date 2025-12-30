@@ -12,7 +12,7 @@ services:
     environment:
       # NEXTAUTH_URL 根据实际情况设置你的信息
       #- NEXTAUTH_URL=http://your_domain_name:3000
-      - NEXTAUTH_SECRET=99jSHte1t8YTE2nsiJeCJFJcUnY2rcQNNCJ5/V5Fe8E=
+      # - NEXTAUTH_SECRET= 根据实际情况设置你的信息
     volumes:
       # Persist the SQLite database
       - ./data:/app/data
