@@ -14,8 +14,9 @@ import { TagInput } from "@/components/tag-input";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiClient } from "@/lib/api-client";
-import { UserProfile } from "@/types/api";
+import { UserProfile, Notebook } from "@/types/api";
 import { inferSubjectFromName } from "@/lib/knowledge-tags";
+import { NotebookSelector } from "@/components/notebook-selector";
 
 interface KnowledgeTag {
     id: string;
@@ -55,6 +56,7 @@ export default function ErrorDetailPage() {
     const [isEditingMetadata, setIsEditingMetadata] = useState(false);
     const [gradeSemesterInput, setGradeSemesterInput] = useState("");
     const [paperLevelInput, setPaperLevelInput] = useState("a");
+    const [notebookInput, setNotebookInput] = useState<string | null>(null);
 
     const [educationStage, setEducationStage] = useState<string | undefined>(undefined);
 
@@ -174,6 +176,7 @@ export default function ErrorDetailPage() {
 
     const startEditingMetadata = () => {
         if (item) {
+            setNotebookInput(item.subjectId || null);
             setGradeSemesterInput(item.gradeSemester || "");
             setPaperLevelInput(item.paperLevel || "a");
             setIsEditingMetadata(true);
@@ -183,6 +186,7 @@ export default function ErrorDetailPage() {
     const saveMetadataHandler = async () => {
         try {
             await apiClient.put(`/api/error-items/${item?.id}`, {
+                subjectId: notebookInput || null,
                 gradeSemester: gradeSemesterInput,
                 paperLevel: paperLevelInput,
             });
@@ -198,6 +202,7 @@ export default function ErrorDetailPage() {
 
     const cancelEditingMetadata = () => {
         setIsEditingMetadata(false);
+        setNotebookInput(null);
         setGradeSemesterInput("");
         setPaperLevelInput("a");
     };
@@ -502,6 +507,15 @@ export default function ErrorDetailPage() {
                                         <div className="space-y-3">
                                             <div className="space-y-2">
                                                 <label className="text-sm text-muted-foreground">
+                                                    {t.notebooks?.title || 'Notebook'}
+                                                </label>
+                                                <NotebookSelector
+                                                    value={notebookInput || undefined}
+                                                    onChange={(val) => setNotebookInput(val)}
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-sm text-muted-foreground">
                                                     {t.filter.grade}
                                                 </label>
                                                 <Input
@@ -541,6 +555,12 @@ export default function ErrorDetailPage() {
                                         </div>
                                     ) : (
                                         <div className="space-y-2 text-sm">
+                                            <div className="flex justify-between">
+                                                <span className="text-muted-foreground">{t.notebooks?.title || 'Notebook'}:</span>
+                                                <span className="font-medium">
+                                                    {item.subject?.name || (t.common?.notSet || 'Not set')}
+                                                </span>
+                                            </div>
                                             <div className="flex justify-between">
                                                 <span className="text-muted-foreground">{t.filter.grade}:</span>
                                                 <span className="font-medium">
