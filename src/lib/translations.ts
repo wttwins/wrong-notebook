@@ -171,6 +171,15 @@ export const translations = {
                 creating: "Creating...",
                 create: "Create",
             },
+            rename: "Rename",
+            renameDialog: {
+                title: "Rename Notebook",
+                nameLabel: "New Name",
+                placeholder: "Enter new notebook name",
+                enterName: "Please enter notebook name",
+                renaming: "Renaming...",
+                rename: "Rename",
+            },
             selector: {
                 placeholder: "Select Notebook",
                 empty: "No notebooks available",
@@ -737,6 +746,15 @@ export const translations = {
                 enterName: "请输入错题本名称",
                 creating: "创建中...",
                 create: "创建",
+            },
+            rename: "重命名",
+            renameDialog: {
+                title: "重命名错题本",
+                nameLabel: "新名称",
+                placeholder: "请输入新的错题本名称",
+                enterName: "请输入错题本名称",
+                renaming: "重命名中...",
+                rename: "重命名",
             },
             selector: {
                 placeholder: "选择错题本",

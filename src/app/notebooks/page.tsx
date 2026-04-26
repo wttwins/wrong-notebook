@@ -8,6 +8,7 @@ import { Plus, House } from "lucide-react";
 import Link from "next/link";
 import { NotebookCard } from "@/components/notebook-card";
 import { CreateNotebookDialog } from "@/components/create-notebook-dialog";
+import { RenameNotebookDialog } from "@/components/rename-notebook-dialog";
 
 import { Notebook } from "@/types/api";
 import { apiClient } from "@/lib/api-client";
@@ -22,6 +23,7 @@ export default function NotebooksPage() {
     const [notebooks, setNotebooks] = useState<Notebook[]>([]);
     const [loading, setLoading] = useState(true);
     const [dialogOpen, setDialogOpen] = useState(false);
+    const [renameTarget, setRenameTarget] = useState<Notebook | null>(null);
 
     useEffect(() => {
         fetchNotebooks();
@@ -47,6 +49,13 @@ export default function NotebooksPage() {
             const message = error.data?.message || t.notebooks?.createError || "Failed to create";
             alert(message);
         }
+    };
+
+    const handleRename = async (name: string) => {
+        if (!renameTarget) return;
+        await apiClient.put(`/api/notebooks/${renameTarget.id}`, { name });
+        setRenameTarget(null);
+        await fetchNotebooks();
     };
 
     const handleDelete = async (id: string, errorCount: number, name: string) => {
@@ -124,6 +133,7 @@ export default function NotebooksPage() {
                                 name={notebook.name}
                                 errorCount={notebook._count?.errorItems || 0}
                                 onClick={() => handleNotebookClick(notebook.id)}
+                                onRename={() => setRenameTarget(notebook)}
                                 onDelete={() => handleDelete(notebook.id, notebook._count?.errorItems || 0, notebook.name)}
                                 itemLabel={t.notebooks?.items || "items"}
                             />
@@ -136,6 +146,13 @@ export default function NotebooksPage() {
                     open={dialogOpen}
                     onOpenChange={setDialogOpen}
                     onCreate={handleCreate}
+                />
+
+                <RenameNotebookDialog
+                    open={!!renameTarget}
+                    onOpenChange={(open) => { if (!open) setRenameTarget(null); }}
+                    currentName={renameTarget?.name || ""}
+                    onRename={handleRename}
                 />
             </div >
         </main >
