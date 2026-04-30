@@ -4,9 +4,10 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { BackButton } from "@/components/ui/back-button";
-import { Plus, House } from "lucide-react";
+import { Plus, House, Pencil } from "lucide-react";
 import Link from "next/link";
 import { ErrorList } from "@/components/error-list";
+import { RenameNotebookDialog } from "@/components/rename-notebook-dialog";
 
 import { Notebook } from "@/types/api";
 import { apiClient } from "@/lib/api-client";
@@ -21,6 +22,7 @@ export default function NotebookDetailPage() {
     const { t } = useLanguage();
     const [notebook, setNotebook] = useState<Notebook | null>(null);
     const [loading, setLoading] = useState(true);
+    const [renameDialogOpen, setRenameDialogOpen] = useState(false);
 
     useEffect(() => {
         if (params.id) {
@@ -41,6 +43,12 @@ export default function NotebookDetailPage() {
         }
     };
 
+    const handleRename = async (name: string) => {
+        if (!notebook) return;
+        const updated = await apiClient.put<Notebook>(`/api/notebooks/${notebook.id}`, { name });
+        setNotebook(updated);
+    };
+
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center">
@@ -57,7 +65,17 @@ export default function NotebookDetailPage() {
                 <div className="flex items-start gap-4">
                     <BackButton fallbackUrl="/notebooks" className="shrink-0" />
                     <div className="flex-1 min-w-0 space-y-1">
-                        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight truncate">{notebook.name}</h1>
+                        <div className="flex items-center gap-2">
+                            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight truncate">{notebook.name}</h1>
+                            <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                onClick={() => setRenameDialogOpen(true)}
+                                title={t.notebooks?.rename || "Rename"}
+                            >
+                                <Pencil className="h-4 w-4" />
+                            </Button>
+                        </div>
                         <p className="text-muted-foreground text-sm sm:text-base">
                             {(t.notebooks?.totalErrors || "Total {count} errors").replace("{count}", (notebook._count?.errorItems || 0).toString())}
                         </p>
@@ -81,6 +99,13 @@ export default function NotebookDetailPage() {
                 </div>
 
                 <ErrorList subjectId={notebook.id} subjectName={notebook.name} />
+
+                <RenameNotebookDialog
+                    open={renameDialogOpen}
+                    onOpenChange={setRenameDialogOpen}
+                    currentName={notebook.name}
+                    onRename={handleRename}
+                />
             </div>
         </main>
     );

@@ -82,7 +82,7 @@ export async function PUT(
         }
 
         const body = await req.json();
-        const { knowledgePoints, gradeSemester, paperLevel, questionText, answerText, analysis } = body;
+        const { knowledgePoints, gradeSemester, paperLevel, questionText, answerText, analysis, subjectId } = body;
 
         const errorItem = await prisma.errorItem.findUnique({
             where: { id },
@@ -104,6 +104,14 @@ export async function PUT(
         if (questionText !== undefined) updateData.questionText = questionText;
         if (answerText !== undefined) updateData.answerText = answerText;
         if (analysis !== undefined) updateData.analysis = analysis;
+        if (subjectId !== undefined) {
+            // 验证目标错题本存在且属于该用户
+            const targetSubject = await prisma.subject.findUnique({ where: { id: subjectId } });
+            if (!targetSubject || targetSubject.userId !== user.id) {
+                return forbidden("Not authorized to move to this notebook");
+            }
+            updateData.subjectId = subjectId === "" ? null : subjectId;
+        }
 
         // 处理 knowledgePoints (标签)
         if (knowledgePoints !== undefined) {
