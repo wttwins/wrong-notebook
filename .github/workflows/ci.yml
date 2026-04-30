@@ -1,18 +1,22 @@
-name: Release CI/CD Pipeline
+name: CI
 
 on:
   push:
+    branches: [main]
     tags:
       - 'v*'
+  pull_request:
+    branches: [main]
 
 jobs:
   # ============================================
-  # 阶段 1: 单元测试 (快速反馈)
+  # 测试阶段（仅 main 分支 push 或 PR）
   # ============================================
   unit-test:
     runs-on: ubuntu-latest
     name: Unit Tests
-    
+    # 只在非 tag push 时运行测试
+    if: "!startsWith(github.ref, 'refs/tags/')"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -29,14 +33,10 @@ jobs:
       - name: Run unit tests
         run: npm run test:unit
 
-  # ============================================
-  # 阶段 2: 集成测试 (完整验证)
-  # ============================================
   integration-test:
     runs-on: ubuntu-latest
     name: Integration Tests
-    needs: unit-test  # 单元测试通过后才运行
-    
+    needs: unit-test
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -56,14 +56,10 @@ jobs:
       - name: Run integration tests
         run: npm run test:integration
 
-  # ============================================
-  # 阶段 3: 构建验证 (确保可以构建)
-  # ============================================
   build-check:
     runs-on: ubuntu-latest
     name: Build Check
     needs: integration-test
-    
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -83,9 +79,6 @@ jobs:
       - name: Build application
         run: npm run build
 
-  # ============================================
-  # 阶段 4: E2E 测试 (真实场景验证)
-  # ============================================
   e2e-test:
     runs-on: ubuntu-latest
     name: E2E Tests
@@ -95,7 +88,6 @@ jobs:
       DATABASE_URL: "file:./e2e.db"
       NEXTAUTH_SECRET: "ci-secret-value-123456"
       NEXTAUTH_URL: "http://127.0.0.1:3000"
-      
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -124,7 +116,7 @@ jobs:
         run: npx playwright test
         env:
           CI: true
-          
+
       - name: Upload Playwright Report
         if: failure()
         uses: actions/upload-artifact@v4
@@ -134,14 +126,13 @@ jobs:
           retention-days: 30
 
   # ============================================
-  # 阶段 5: Docker 构建与发布 (仅 tag)
+  # Docker 构建（仅 tag push）
   # ============================================
   docker-build:
     runs-on: ubuntu-latest
     name: Docker Build & Push
-    needs: e2e-test
     # 只在 tag 推送时构建镜像
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/')
     permissions:
       contents: read
       packages: write
@@ -157,23 +148,18 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # 提取 Docker 元数据（自动生成版本标签）
       - name: Extract Docker metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
-            # Git Tag v1.0.0 → 1.0.0, 1.0, 1
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
-            # 正式版本 tag（不含 -beta/-rc 等后缀）→ latest
             type=raw,value=latest,enable=${{ !contains(github.ref, '-') }}
-            # 所有推送 → sha-abc1234
             type=sha,prefix=sha-
 
-      # 设置 QEMU 模拟器（多架构支持）
       - name: Set up QEMU (Enable multi-arch)
         uses: docker/setup-qemu-action@v3
 
