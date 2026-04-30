@@ -91,6 +91,7 @@ describe('/api/reanswer', () => {
                 expect.any(String),
                 'zh',
                 '英语',
+                undefined,
                 undefined
             );
         });
@@ -123,7 +124,8 @@ describe('/api/reanswer', () => {
                 expect.any(String),
                 'zh',
                 '数学',
-                imageBase64
+                imageBase64,
+                undefined
             );
         });
 
@@ -151,6 +153,7 @@ describe('/api/reanswer', () => {
                 expect.any(String),
                 'en',
                 undefined,
+                undefined,
                 undefined
             );
         });
@@ -177,6 +180,7 @@ describe('/api/reanswer', () => {
             expect(mocks.mockAIService.reanswerQuestion).toHaveBeenCalledWith(
                 expect.any(String),
                 'zh', // 默认中文
+                undefined,
                 undefined,
                 undefined
             );
@@ -372,6 +376,7 @@ describe('/api/reanswer', () => {
                 longQuestionText,
                 'zh',
                 '数学',
+                undefined,
                 undefined
             );
         });

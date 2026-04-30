@@ -150,7 +150,8 @@ describe('/api/practice', () => {
                 expect.any(String),
                 expect.any(Array),
                 'zh',
-                'medium' // 默认难度
+                'medium', // 默认难度
+                undefined
             );
         });
 
@@ -197,7 +198,8 @@ describe('/api/practice', () => {
                 '求解 x + 2 = 5',
                 ['一元一次方程', '移项'], // 解析后的标签数组
                 'zh',
-                'medium'
+                'medium',
+                undefined
             );
         });
 
@@ -231,7 +233,8 @@ describe('/api/practice', () => {
                 expect.any(String),
                 [], // 空数组
                 'zh',
-                'medium'
+                'medium',
+                undefined
             );
         });
 
