@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { apiClient } from "@/lib/api-client";
 import { UserProfile, Notebook } from "@/types/api";
 import { inferSubjectFromName } from "@/lib/knowledge-tags";
+import { getMistakeStatusLabel, normalizeMistakeStatusForSave } from "@/lib/mistake-status";
 import { NotebookSelector } from "@/components/notebook-selector";
 
 interface KnowledgeTag {
@@ -28,6 +29,9 @@ interface ErrorItemDetail {
     questionText: string;
     answerText: string;
     analysis: string;
+    wrongAnswerText?: string | null;
+    mistakeAnalysis?: string | null;
+    mistakeStatus?: string | null;
     knowledgePoints: string; // 保留兼容旧数据
     tags: KnowledgeTag[]; // 新的标签关联
     masteryLevel: number;
@@ -216,6 +220,11 @@ export default function ErrorDetailPage() {
     const [isEditingAnalysis, setIsEditingAnalysis] = useState(false);
     const [analysisInput, setAnalysisInput] = useState("");
 
+    const [isEditingMistake, setIsEditingMistake] = useState(false);
+    const [wrongAnswerInput, setWrongAnswerInput] = useState("");
+    const [mistakeAnalysisInput, setMistakeAnalysisInput] = useState("");
+    const [mistakeStatusInput, setMistakeStatusInput] = useState("unknown");
+
     // --- Question Handlers ---
     const startEditingQuestion = () => {
         if (item) {
@@ -289,6 +298,51 @@ export default function ErrorDetailPage() {
     const cancelEditingAnalysis = () => {
         setIsEditingAnalysis(false);
         setAnalysisInput("");
+    };
+
+    // --- Mistake Analysis Handlers ---
+    const startEditingMistake = () => {
+        if (item) {
+            setWrongAnswerInput(item.wrongAnswerText || "");
+            setMistakeAnalysisInput(item.mistakeAnalysis || "");
+            setMistakeStatusInput(item.mistakeStatus || "unknown");
+            setIsEditingMistake(true);
+        }
+    };
+
+    const saveMistakeHandler = async () => {
+        try {
+            const normalizedStatus = normalizeMistakeStatusForSave(
+                mistakeStatusInput,
+                wrongAnswerInput,
+                mistakeAnalysisInput
+            );
+            await apiClient.put(`/api/error-items/${item?.id}`, {
+                wrongAnswerText: wrongAnswerInput,
+                mistakeAnalysis: mistakeAnalysisInput,
+                mistakeStatus: normalizedStatus,
+            });
+            setIsEditingMistake(false);
+            if (item) {
+                setItem({
+                    ...item,
+                    wrongAnswerText: wrongAnswerInput,
+                    mistakeAnalysis: mistakeAnalysisInput,
+                    mistakeStatus: normalizedStatus,
+                });
+            }
+            alert(t.common?.messages?.saveSuccess || 'Saved successfully');
+        } catch (error) {
+            console.error(error);
+            alert(t.common?.messages?.saveFailed || 'Save failed');
+        }
+    };
+
+    const cancelEditingMistake = () => {
+        setIsEditingMistake(false);
+        setWrongAnswerInput("");
+        setMistakeAnalysisInput("");
+        setMistakeStatusInput("unknown");
     };
 
     const saveNotes = async () => {
@@ -722,6 +776,99 @@ export default function ErrorDetailPage() {
                                     </div>
                                 ) : (
                                     <MarkdownRenderer content={item.analysis} />
+                                )}
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                            <CardHeader>
+                                <div className="flex justify-between items-center">
+                                    <CardTitle>{t.detail?.mistakeAnalysis || '错因分析'}</CardTitle>
+                                    {!isEditingMistake && (
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={startEditingMistake}
+                                        >
+                                            <Edit className="h-4 w-4 mr-1" />
+                                            {t.common?.edit || 'Edit'}
+                                        </Button>
+                                    )}
+                                </div>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                {isEditingMistake ? (
+                                    <div className="space-y-4">
+                                        <div className="space-y-2">
+                                            <label className="text-sm text-muted-foreground">{t.editor?.mistakeStatus || '作答状态'}</label>
+                                            <Select
+                                                value={mistakeStatusInput}
+                                                onValueChange={setMistakeStatusInput}
+                                            >
+                                                <SelectTrigger>
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="not_attempted">{t.editor?.mistakeStatuses?.notAttempted || '不会做'}</SelectItem>
+                                                    <SelectItem value="wrong_attempt">{t.editor?.mistakeStatuses?.wrongAttempt || '做错了'}</SelectItem>
+                                                    <SelectItem value="unknown">{t.editor?.mistakeStatuses?.unknown || '未判断'}</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-sm text-muted-foreground">{t.editor?.wrongAnswerText || '错误解答原文'}</label>
+                                            <Textarea
+                                                value={wrongAnswerInput}
+                                                onChange={(e) => {
+                                                    setWrongAnswerInput(e.target.value);
+                                                    if (e.target.value.trim()) setMistakeStatusInput('wrong_attempt');
+                                                }}
+                                                rows={5}
+                                                className="w-full font-mono text-sm"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-sm text-muted-foreground">{t.editor?.mistakeAnalysis || '错因分析'}</label>
+                                            <Textarea
+                                                value={mistakeAnalysisInput}
+                                                onChange={(e) => {
+                                                    setMistakeAnalysisInput(e.target.value);
+                                                }}
+                                                rows={8}
+                                                className="w-full font-mono text-sm"
+                                            />
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <Button size="sm" onClick={saveMistakeHandler}>
+                                                <Save className="h-4 w-4 mr-1" />
+                                                {t.common?.save || 'Save'}
+                                            </Button>
+                                            <Button size="sm" variant="outline" onClick={cancelEditingMistake}>
+                                                <X className="h-4 w-4 mr-1" />
+                                                {t.common?.cancel || 'Cancel'}
+                                            </Button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-4">
+                                        <Badge variant={item.mistakeStatus === 'wrong_attempt' ? 'default' : 'secondary'}>
+                                            {getMistakeStatusLabel(item.mistakeStatus, language)}
+                                        </Badge>
+                                        {item.wrongAnswerText ? (
+                                            <div>
+                                                <h4 className="text-sm font-semibold mb-2">{t.editor?.wrongAnswerText || '错误解答原文'}</h4>
+                                                <MarkdownRenderer content={item.wrongAnswerText} />
+                                            </div>
+                                        ) : null}
+                                        {item.mistakeAnalysis ? (
+                                            <div>
+                                                <h4 className="text-sm font-semibold mb-2">{t.editor?.mistakeAnalysis || '错因分析'}</h4>
+                                                <MarkdownRenderer content={item.mistakeAnalysis} />
+                                            </div>
+                                        ) : (
+                                            <p className="text-sm text-muted-foreground italic">{t.detail?.noMistakeAnalysis || '暂无错因分析'}</p>
+                                        )}
+                                    </div>
                                 )}
                             </CardContent>
                         </Card>

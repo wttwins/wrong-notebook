@@ -55,6 +55,9 @@ export interface ErrorItem {
     questionText?: string | null;
     answerText?: string | null;
     analysis?: string | null;
+    wrongAnswerText?: string | null;
+    mistakeAnalysis?: string | null;
+    mistakeStatus?: 'not_attempted' | 'wrong_attempt' | 'unknown' | string | null;
     knowledgePoints?: string | null;
 
     source?: string | null;

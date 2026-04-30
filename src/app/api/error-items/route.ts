@@ -7,6 +7,7 @@ import { unauthorized, internalError } from "@/lib/api-errors";
 import { createLogger } from "@/lib/logger";
 import { findParentTagIdForGrade } from "@/lib/tag-recognition";
 import { inferSubjectFromName } from "@/lib/knowledge-tags";
+import { normalizeMistakeStatusForSave } from "@/lib/mistake-status";
 
 const logger = createLogger('api:error-items');
 
@@ -21,6 +22,9 @@ export async function POST(req: Request) {
             questionText,
             answerText,
             analysis,
+            wrongAnswerText,
+            mistakeAnalysis,
+            mistakeStatus,
             knowledgePoints,
             originalImageUrl,
             subjectId,
@@ -34,6 +38,9 @@ export async function POST(req: Request) {
             questionTextLength: questionText?.length || 0,
             hasAnswerText: !!answerText,
             hasAnalysis: !!analysis,
+            hasWrongAnswerText: !!wrongAnswerText,
+            hasMistakeAnalysis: !!mistakeAnalysis,
+            mistakeStatus,
             knowledgePointsCount: Array.isArray(knowledgePoints) ? knowledgePoints.length : 0,
             hasImage: !!originalImageUrl,
             imageSize: originalImageUrl?.length || 0,
@@ -158,6 +165,9 @@ export async function POST(req: Request) {
                     questionText,
                     answerText,
                     analysis,
+                    wrongAnswerText: wrongAnswerText || null,
+                    mistakeAnalysis: mistakeAnalysis || null,
+                    mistakeStatus: normalizeMistakeStatusForSave(mistakeStatus, wrongAnswerText, mistakeAnalysis),
                     knowledgePoints: JSON.stringify(tagNames),
                     gradeSemester: finalGradeSemester,
                     paperLevel: paperLevel,

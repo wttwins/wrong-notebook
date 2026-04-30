@@ -1,13 +1,18 @@
 import OpenAI from "openai";
-import { AIService, ParsedQuestion, DifficultyLevel, AIConfig } from "./types";
-import { jsonrepair } from "jsonrepair";
+import { AIService, ParsedQuestion, DifficultyLevel, AIConfig, ReanswerQuestionResult } from "./types";
 import { generateAnalyzePrompt, generateSimilarQuestionPrompt } from './prompts';
 import { getAppConfig } from '../config';
-import { validateParsedQuestion, safeParseParsedQuestion } from './schema';
+import { safeParseParsedQuestion } from './schema';
 import { getMathTagsFromDB, getTagsFromDB } from './tag-service';
 import { createLogger } from '../logger';
+import { normalizeMistakeStatusForSave } from '../mistake-status';
 
 const logger = createLogger('ai:openai');
+
+type OpenAIUserContent = string | Array<
+    { type: "text"; text: string } |
+    { type: "image_url"; image_url: { url: string } }
+>;
 
 export class OpenAIProvider implements AIService {
     private openai: OpenAI;
@@ -52,7 +57,7 @@ export class OpenAIProvider implements AIService {
         }
 
         const contentStartIndex = startIndex + startTag.length;
-        let endIndex = text.lastIndexOf(endTag);
+        const endIndex = text.lastIndexOf(endTag);
 
         // 特殊处理：如果闭合标签丢失（通常主要发生在最后的 analysis 标签被截断时）
         // 我们尝试读取到字符串末尾
@@ -77,6 +82,9 @@ export class OpenAIProvider implements AIService {
         const subjectRaw = this.extractTag(text, "subject");
         const knowledgePointsRaw = this.extractTag(text, "knowledge_points");
         const requiresImageRaw = this.extractTag(text, "requires_image");
+        const wrongAnswerText = this.extractTag(text, "wrong_answer_text") || "";
+        const mistakeAnalysis = this.extractTag(text, "mistake_analysis") || "";
+        const mistakeStatusRaw = this.extractTag(text, "mistake_status");
 
         // Basic Validation
         if (!questionText || !answerText || !analysis) {
@@ -86,9 +94,9 @@ export class OpenAIProvider implements AIService {
 
         // Process Subject
         let subject: ParsedQuestion['subject'] = '其他';
-        const validSubjects = ["数学", "物理", "化学", "生物", "英语", "语文", "历史", "地理", "政治", "其他"];
-        if (subjectRaw && validSubjects.includes(subjectRaw)) {
-            subject = subjectRaw as any;
+        const validSubjects: ParsedQuestion['subject'][] = ["数学", "物理", "化学", "生物", "英语", "语文", "历史", "地理", "政治", "其他"];
+        if (subjectRaw && (validSubjects as string[]).includes(subjectRaw)) {
+            subject = subjectRaw as ParsedQuestion['subject'];
         }
 
         // Process Knowledge Points
@@ -100,12 +108,16 @@ export class OpenAIProvider implements AIService {
 
         // Process requiresImage (default to false if not present or unrecognized)
         const requiresImage = requiresImageRaw?.toLowerCase().trim() === 'true';
+        const mistakeStatus = normalizeMistakeStatusForSave(mistakeStatusRaw, wrongAnswerText, mistakeAnalysis);
 
         // Construct Result
         const result: ParsedQuestion = {
             questionText,
             answerText,
             analysis,
+            wrongAnswerText,
+            mistakeAnalysis,
+            mistakeStatus,
             subject,
             knowledgePoints,
             requiresImage
@@ -284,7 +296,7 @@ export class OpenAIProvider implements AIService {
         }
     }
 
-    async reanswerQuestion(questionText: string, language: 'zh' | 'en' = 'zh', subject?: string | null, imageBase64?: string): Promise<{ answerText: string; analysis: string; knowledgePoints: string[] }> {
+    async reanswerQuestion(questionText: string, language: 'zh' | 'en' = 'zh', subject?: string | null, imageBase64?: string): Promise<ReanswerQuestionResult> {
         const { generateReanswerPrompt } = await import('./prompts');
         const prompt = generateReanswerPrompt(language, questionText, subject);
 
@@ -300,7 +312,7 @@ export class OpenAIProvider implements AIService {
 
         try {
             // 根据是否有图片构建不同的消息内容
-            let userContent: any = "请根据上述题目提供答案和解析。";
+            let userContent: OpenAIUserContent = "请根据上述题目提供答案和解析。";
             if (imageBase64) {
                 // 如果有图片，构建多模态消息
                 const imageUrl = imageBase64.startsWith('data:') ? imageBase64 : `data:image/jpeg;base64,${imageBase64}`;
@@ -352,10 +364,17 @@ export class OpenAIProvider implements AIService {
             const analysis = this.extractTag(text, "analysis") || "";
             const knowledgePointsRaw = this.extractTag(text, "knowledge_points") || "";
             const knowledgePoints = knowledgePointsRaw.split(/[,，\n]/).map(k => k.trim()).filter(k => k.length > 0);
+            const wrongAnswerText = this.extractTag(text, "wrong_answer_text") || "";
+            const mistakeAnalysis = this.extractTag(text, "mistake_analysis") || "";
+            const mistakeStatus = normalizeMistakeStatusForSave(
+                this.extractTag(text, "mistake_status"),
+                wrongAnswerText,
+                mistakeAnalysis
+            );
 
             logger.info('Reanswer parsed successfully');
 
-            return { answerText, analysis, knowledgePoints };
+            return { answerText, analysis, knowledgePoints, wrongAnswerText, mistakeAnalysis, mistakeStatus };
 
         } catch (error) {
             logger.error({ error, stack: error instanceof Error ? error.stack : undefined }, 'Error during reanswer');

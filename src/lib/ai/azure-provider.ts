@@ -1,13 +1,18 @@
 import { AzureOpenAI } from "openai";
-import { AIService, ParsedQuestion, DifficultyLevel, AIConfig } from "./types";
-import { jsonrepair } from "jsonrepair";
-import { generateAnalyzePrompt, generateSimilarQuestionPrompt } from './prompts';
+import { AIService, ParsedQuestion, DifficultyLevel, ReanswerQuestionResult } from "./types";
+import { generateAnalyzePrompt, generateSimilarQuestionPrompt, generateReanswerPrompt } from './prompts';
 import { getAppConfig } from '../config';
-import { validateParsedQuestion, safeParseParsedQuestion } from './schema';
+import { safeParseParsedQuestion } from './schema';
 import { getMathTagsFromDB, getTagsFromDB } from './tag-service';
 import { createLogger } from '../logger';
+import { normalizeMistakeStatusForSave } from '../mistake-status';
 
 const logger = createLogger('ai:azure');
+
+type AzureUserContent = string | Array<
+    { type: "text"; text: string } |
+    { type: "image_url"; image_url: { url: string } }
+>;
 
 // Azure 配置接口
 export interface AzureConfig {
@@ -83,6 +88,9 @@ export class AzureOpenAIProvider implements AIService {
         const subjectRaw = this.extractTag(text, "subject");
         const knowledgePointsRaw = this.extractTag(text, "knowledge_points");
         const requiresImageRaw = this.extractTag(text, "requires_image");
+        const wrongAnswerText = this.extractTag(text, "wrong_answer_text") || "";
+        const mistakeAnalysis = this.extractTag(text, "mistake_analysis") || "";
+        const mistakeStatusRaw = this.extractTag(text, "mistake_status");
 
         // Basic Validation
         if (!questionText || !answerText || !analysis) {
@@ -92,9 +100,9 @@ export class AzureOpenAIProvider implements AIService {
 
         // Process Subject
         let subject: ParsedQuestion['subject'] = '其他';
-        const validSubjects = ["数学", "物理", "化学", "生物", "英语", "语文", "历史", "地理", "政治", "其他"];
-        if (subjectRaw && validSubjects.includes(subjectRaw)) {
-            subject = subjectRaw as any;
+        const validSubjects: ParsedQuestion['subject'][] = ["数学", "物理", "化学", "生物", "英语", "语文", "历史", "地理", "政治", "其他"];
+        if (subjectRaw && (validSubjects as string[]).includes(subjectRaw)) {
+            subject = subjectRaw as ParsedQuestion['subject'];
         }
 
         // Process Knowledge Points
@@ -105,12 +113,16 @@ export class AzureOpenAIProvider implements AIService {
 
         // Process requiresImage
         const requiresImage = requiresImageRaw?.toLowerCase().trim() === 'true';
+        const mistakeStatus = normalizeMistakeStatusForSave(mistakeStatusRaw, wrongAnswerText, mistakeAnalysis);
 
         // Construct Result
         const result: ParsedQuestion = {
             questionText,
             answerText,
             analysis,
+            wrongAnswerText,
+            mistakeAnalysis,
+            mistakeStatus,
             subject,
             knowledgePoints,
             requiresImage
@@ -287,31 +299,8 @@ Knowledge Points: ${knowledgePoints.join(", ")}
         language: 'zh' | 'en' = 'zh',
         subject?: string | null,
         imageBase64?: string
-    ): Promise<{ answerText: string; analysis: string; knowledgePoints: string[] }> {
-        // 构建 prompt（参考 openai-provider.ts）
-        const prompt = language === 'zh'
-            ? `你是一位专业的学科老师。请根据给定的题目，提供：
-1. 标准答案
-2. 详细的解析过程
-3. 涉及的知识点列表
-
-请使用以下格式回复：
-<answer_text>标准答案</answer_text>
-<analysis>详细解析</analysis>
-<knowledge_points>知识点1, 知识点2, ...</knowledge_points>
-
-题目：${questionText}`
-            : `You are a professional teacher. Based on the given question, provide:
-1. Standard answer
-2. Detailed analysis
-3. List of knowledge points
-
-Please respond in the following format:
-<answer_text>Standard answer</answer_text>
-<analysis>Detailed analysis</analysis>
-<knowledge_points>Knowledge point 1, Knowledge point 2, ...</knowledge_points>
-
-Question: ${questionText}`;
+    ): Promise<ReanswerQuestionResult> {
+        const prompt = generateReanswerPrompt(language, questionText, subject);
 
         logger.box('🔄 Reanswer Question Request', {
             provider: 'Azure OpenAI',
@@ -326,7 +315,7 @@ Question: ${questionText}`;
 
         try {
             // 根据是否有图片构建不同的消息内容
-            let userContent: any = "请根据上述题目提供答案和解析。";
+            let userContent: AzureUserContent = "请根据上述题目提供答案和解析。";
             if (imageBase64) {
                 // 如果有图片，构建多模态消息
                 const imageUrl = imageBase64.startsWith('data:') ? imageBase64 : `data:image/jpeg;base64,${imageBase64}`;
@@ -367,10 +356,17 @@ Question: ${questionText}`;
             const analysis = this.extractTag(text, "analysis") || "";
             const knowledgePointsRaw = this.extractTag(text, "knowledge_points") || "";
             const knowledgePoints = knowledgePointsRaw.split(/[,，\n]/).map(k => k.trim()).filter(k => k.length > 0);
+            const wrongAnswerText = this.extractTag(text, "wrong_answer_text") || "";
+            const mistakeAnalysis = this.extractTag(text, "mistake_analysis") || "";
+            const mistakeStatus = normalizeMistakeStatusForSave(
+                this.extractTag(text, "mistake_status"),
+                wrongAnswerText,
+                mistakeAnalysis
+            );
 
             logger.info('Reanswer parsed successfully');
 
-            return { answerText, analysis, knowledgePoints };
+            return { answerText, analysis, knowledgePoints, wrongAnswerText, mistakeAnalysis, mistakeStatus };
 
         } catch (error) {
             logger.error({ error, stack: error instanceof Error ? error.stack : undefined }, 'Error during reanswer');

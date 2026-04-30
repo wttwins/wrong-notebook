@@ -92,6 +92,9 @@ model ErrorItem {
   questionText     String? // Parsed question
   answerText       String? // AI provided answer
   analysis         String? // AI analysis/explanation
+  wrongAnswerText  String? // Student's wrong answer/work if visible
+  mistakeAnalysis  String? // Analysis of why the wrong answer happened
+  mistakeStatus    String? // not_attempted, wrong_attempt, unknown
   knowledgePoints  String? // [DEPRECATED] JSON string - kept for migration only
   
   // New: many-to-many relation with KnowledgeTag

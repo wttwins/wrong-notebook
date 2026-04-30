@@ -5,13 +5,15 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+const mockAzureCompletionCreate = vi.hoisted(() => vi.fn());
+
 // Mock Azure OpenAI SDK
 vi.mock('openai', () => {
     return {
         AzureOpenAI: class MockAzureOpenAI {
             chat = {
                 completions: {
-                    create: vi.fn(),
+                    create: mockAzureCompletionCreate,
                 },
             };
         },
@@ -56,6 +58,17 @@ vi.mock('jsonrepair', () => ({
 
 // Delayed import to ensure mocks are applied
 import { AzureOpenAIProvider } from '@/lib/ai/azure-provider';
+import type { ParsedQuestion } from '@/lib/ai/types';
+
+type PrivateAzureProvider = {
+    parseResponse(text: string): ParsedQuestion;
+    extractTag(text: string, tagName: string): string | null;
+    handleError(error: unknown): never;
+};
+
+function asPrivateProvider(provider: AzureOpenAIProvider): PrivateAzureProvider {
+    return provider as unknown as PrivateAzureProvider;
+}
 
 describe('Azure OpenAI Provider 初始化', () => {
     beforeEach(() => {
@@ -226,7 +239,7 @@ describe('Azure OpenAI Provider 响应解析', () => {
             `.trim();
 
             // Access private method via type assertion
-            const result = (provider as any).parseResponse(mockResponse);
+            const result = asPrivateProvider(provider).parseResponse(mockResponse);
 
             expect(result.questionText).toBe('求函数 f(x) = x^2 的最小值');
             expect(result.answerText).toBe('最小值为 0');
@@ -245,9 +258,40 @@ describe('Azure OpenAI Provider 响应解析', () => {
 <requires_image>false</requires_image>
             `.trim();
 
-            const result = (provider as any).parseResponse(mockResponse);
+            const result = asPrivateProvider(provider).parseResponse(mockResponse);
 
             expect(result.requiresImage).toBe(false);
+        });
+
+        it('应该解析错因分析相关可选标签', () => {
+            const mockResponse = `
+<question_text>求 2x + 3 = 7</question_text>
+<answer_text>x = 2</answer_text>
+<analysis>移项后计算。</analysis>
+<wrong_answer_text>x = 4</wrong_answer_text>
+<mistake_status>wrong_attempt</mistake_status>
+<mistake_analysis>移项后没有正确处理常数项。</mistake_analysis>
+            `.trim();
+
+            const result = asPrivateProvider(provider).parseResponse(mockResponse);
+
+            expect(result.wrongAnswerText).toBe('x = 4');
+            expect(result.mistakeStatus).toBe('wrong_attempt');
+            expect(result.mistakeAnalysis).toContain('常数项');
+        });
+
+        it('缺少错因标签时应该兼容旧响应并标记为未判断', () => {
+            const mockResponse = `
+<question_text>测试题目</question_text>
+<answer_text>测试答案</answer_text>
+<analysis>测试解析</analysis>
+            `.trim();
+
+            const result = asPrivateProvider(provider).parseResponse(mockResponse);
+
+            expect(result.wrongAnswerText).toBe('');
+            expect(result.mistakeAnalysis).toBe('');
+            expect(result.mistakeStatus).toBe('unknown');
         });
 
         it('应该正确处理无效学科返回默认值"其他"', () => {
@@ -258,7 +302,7 @@ describe('Azure OpenAI Provider 响应解析', () => {
 <subject>无效学科</subject>
             `.trim();
 
-            const result = (provider as any).parseResponse(mockResponse);
+            const result = asPrivateProvider(provider).parseResponse(mockResponse);
 
             expect(result.subject).toBe('其他');
         });
@@ -271,7 +315,7 @@ describe('Azure OpenAI Provider 响应解析', () => {
 <knowledge_points>知识点1, 知识点2, 知识点3</knowledge_points>
             `.trim();
 
-            const result = (provider as any).parseResponse(mockResponse);
+            const result = asPrivateProvider(provider).parseResponse(mockResponse);
 
             expect(result.knowledgePoints).toHaveLength(3);
             expect(result.knowledgePoints).toContain('知识点1');
@@ -287,7 +331,7 @@ describe('Azure OpenAI Provider 响应解析', () => {
 <knowledge_points>知识点1,知识点2,知识点3</knowledge_points>
             `.trim();
 
-            const result = (provider as any).parseResponse(mockResponse);
+            const result = asPrivateProvider(provider).parseResponse(mockResponse);
 
             expect(result.knowledgePoints).toHaveLength(3);
         });
@@ -298,28 +342,28 @@ describe('Azure OpenAI Provider 响应解析', () => {
 <answer_text>测试答案</answer_text>
             `.trim();
 
-            expect(() => (provider as any).parseResponse(mockResponse)).toThrow('Missing critical XML tags');
+            expect(() => asPrivateProvider(provider).parseResponse(mockResponse)).toThrow('Missing critical XML tags');
         });
     });
 
     describe('extractTag', () => {
         it('应该正确提取标签内容', () => {
             const text = '<test>content</test>';
-            const result = (provider as any).extractTag(text, 'test');
+            const result = asPrivateProvider(provider).extractTag(text, 'test');
 
             expect(result).toBe('content');
         });
 
         it('应该去除首尾空格', () => {
             const text = '<test>  content with spaces  </test>';
-            const result = (provider as any).extractTag(text, 'test');
+            const result = asPrivateProvider(provider).extractTag(text, 'test');
 
             expect(result).toBe('content with spaces');
         });
 
         it('标签不存在时应该返回 null', () => {
             const text = '<other>content</other>';
-            const result = (provider as any).extractTag(text, 'test');
+            const result = asPrivateProvider(provider).extractTag(text, 'test');
 
             expect(result).toBeNull();
         });
@@ -332,12 +376,50 @@ line 2
 line 3
 </test>
             `.trim();
-            const result = (provider as any).extractTag(text, 'test');
+            const result = asPrivateProvider(provider).extractTag(text, 'test');
 
             expect(result).toContain('line 1');
             expect(result).toContain('line 2');
             expect(result).toContain('line 3');
         });
+    });
+});
+
+describe('Azure OpenAI Provider 重新解题错因同步', () => {
+    let provider: AzureOpenAIProvider;
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        provider = new AzureOpenAIProvider({
+            apiKey: 'test-key',
+            endpoint: 'https://test.openai.azure.com',
+            deploymentName: 'gpt-4o',
+        });
+    });
+
+    it('重新解题应该返回新的错因字段，供前端覆盖旧错因', async () => {
+        mockAzureCompletionCreate.mockResolvedValueOnce({
+            choices: [{
+                message: {
+                    content: `
+<answer_text>x = 2</answer_text>
+<analysis>两边同时减 3，再除以 2。</analysis>
+<knowledge_points>一元一次方程</knowledge_points>
+<wrong_answer_text>x = 4</wrong_answer_text>
+<mistake_status>wrong_attempt</mistake_status>
+<mistake_analysis>把 7 - 3 算错了。</mistake_analysis>
+                    `.trim(),
+                },
+            }],
+        });
+
+        const result = await provider.reanswerQuestion('求解 2x + 3 = 7', 'zh', '数学');
+
+        expect(result.answerText).toBe('x = 2');
+        expect(result.knowledgePoints).toEqual(['一元一次方程']);
+        expect(result.wrongAnswerText).toBe('x = 4');
+        expect(result.mistakeStatus).toBe('wrong_attempt');
+        expect(result.mistakeAnalysis).toContain('算错');
     });
 });
 
@@ -357,43 +439,43 @@ describe('Azure OpenAI Provider 错误处理', () => {
         it('应该将网络错误转换为 AI_CONNECTION_FAILED', () => {
             const networkError = new Error('fetch failed');
 
-            expect(() => (provider as any).handleError(networkError)).toThrow('AI_CONNECTION_FAILED');
+            expect(() => asPrivateProvider(provider).handleError(networkError)).toThrow('AI_CONNECTION_FAILED');
         });
 
         it('应该将连接错误转换为 AI_CONNECTION_FAILED', () => {
             const connectionError = new Error('Failed to connect to server');
 
-            expect(() => (provider as any).handleError(connectionError)).toThrow('AI_CONNECTION_FAILED');
+            expect(() => asPrivateProvider(provider).handleError(connectionError)).toThrow('AI_CONNECTION_FAILED');
         });
 
         it('应该将认证错误转换为 AI_AUTH_ERROR', () => {
             const authError = new Error('Unauthorized: Invalid API key');
 
-            expect(() => (provider as any).handleError(authError)).toThrow('AI_AUTH_ERROR');
+            expect(() => asPrivateProvider(provider).handleError(authError)).toThrow('AI_AUTH_ERROR');
         });
 
         it('应该将 401 错误转换为 AI_AUTH_ERROR', () => {
             const authError = new Error('Request failed with status 401');
 
-            expect(() => (provider as any).handleError(authError)).toThrow('AI_AUTH_ERROR');
+            expect(() => asPrivateProvider(provider).handleError(authError)).toThrow('AI_AUTH_ERROR');
         });
 
         it('应该将 JSON 解析错误转换为 AI_RESPONSE_ERROR', () => {
             const parseError = new Error('Invalid JSON format');
 
-            expect(() => (provider as any).handleError(parseError)).toThrow('AI_RESPONSE_ERROR');
+            expect(() => asPrivateProvider(provider).handleError(parseError)).toThrow('AI_RESPONSE_ERROR');
         });
 
         it('未知错误应该转换为 AI_UNKNOWN_ERROR', () => {
             const unknownError = new Error('Something went wrong');
 
-            expect(() => (provider as any).handleError(unknownError)).toThrow('AI_UNKNOWN_ERROR');
+            expect(() => asPrivateProvider(provider).handleError(unknownError)).toThrow('AI_UNKNOWN_ERROR');
         });
 
         it('非 Error 对象应该转换为 AI_UNKNOWN_ERROR', () => {
             const unknownError = 'string error';
 
-            expect(() => (provider as any).handleError(unknownError)).toThrow('AI_UNKNOWN_ERROR');
+            expect(() => asPrivateProvider(provider).handleError(unknownError)).toThrow('AI_UNKNOWN_ERROR');
         });
     });
 });

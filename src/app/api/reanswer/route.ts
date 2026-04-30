@@ -42,16 +42,18 @@ export async function POST(req: Request) {
         logger.info('Reanswer successful');
 
         return NextResponse.json(result);
-    } catch (error: any) {
-        logger.error({ error: error.message, stack: error.stack }, 'Reanswer error occurred');
+    } catch (error: unknown) {
+        const errorMessageFromError = error instanceof Error ? error.message : String(error);
+        const stack = error instanceof Error ? error.stack : undefined;
+        logger.error({ error: errorMessageFromError, stack }, 'Reanswer error occurred');
 
-        let errorMessage = error.message || "Failed to reanswer question";
+        let errorMessage = errorMessageFromError || "Failed to reanswer question";
 
-        if (error.message?.includes('AI_AUTH_ERROR')) {
+        if (errorMessageFromError.includes('AI_AUTH_ERROR')) {
             errorMessage = 'AI_AUTH_ERROR';
-        } else if (error.message === 'AI_CONNECTION_FAILED') {
+        } else if (errorMessageFromError === 'AI_CONNECTION_FAILED') {
             errorMessage = 'AI_CONNECTION_FAILED';
-        } else if (error.message === 'AI_RESPONSE_ERROR') {
+        } else if (errorMessageFromError === 'AI_RESPONSE_ERROR') {
             errorMessage = 'AI_RESPONSE_ERROR';
         }
 

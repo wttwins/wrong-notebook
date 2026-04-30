@@ -18,6 +18,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { apiClient } from "@/lib/api-client";
 import { UserProfile, Notebook } from "@/types/api";
 import { inferSubjectFromName } from "@/lib/knowledge-tags";
+import { normalizeMistakeStatusForSave, type MistakeStatus } from "@/lib/mistake-status";
+import type { ReanswerQuestionResult } from "@/lib/ai/types";
+import { buildReanswerRequestBody } from "@/lib/reanswer-request";
 
 interface ParsedQuestionWithSubject extends ParsedQuestion {
     subjectId?: string;
@@ -34,9 +37,19 @@ interface CorrectionEditorProps {
     aiTimeout?: number;
 }
 
+type ReanswerErrorMessages = {
+    default?: string;
+    authError?: string;
+    connectionFailed?: string;
+    responseError?: string;
+};
+
 export function CorrectionEditor({ initialData, onSave, onCancel, imagePreview, initialSubjectId, aiTimeout }: CorrectionEditorProps) {
     const [data, setData] = useState<ParsedQuestionWithSubject>({
         ...initialData,
+        wrongAnswerText: initialData.wrongAnswerText || "",
+        mistakeAnalysis: initialData.mistakeAnalysis || "",
+        mistakeStatus: initialData.mistakeStatus || "unknown",
         subjectId: initialSubjectId,
         gradeSemester: "",
         paperLevel: "a"
@@ -77,39 +90,44 @@ export function CorrectionEditor({ initialData, onSave, onCancel, imagePreview, 
 
         setIsReanswering(true);
         try {
-            // 根据 requiresImage 标识决定是否传递原始图片
-            const requestBody: any = {
+            const requestBody = buildReanswerRequestBody({
                 questionText: data.questionText,
                 language,
-                subject: data.subject
-            };
+                subject: data.subject,
+                imagePreview,
+            });
 
-            // 如果题目需要图片（如几何题），且有原始图片，则一起传递
-            if (data.requiresImage && imagePreview) {
-                requestBody.imageBase64 = imagePreview;
-                console.log("[Reanswer] Sending image + text (Image context required)");
+            if (requestBody.imageBase64) {
+                console.log("[Reanswer] Sending image + text (Image available for mistake analysis)");
             } else {
-                console.log("[Reanswer] Sending text only (No image required)");
+                console.log("[Reanswer] Sending text only (No image available)");
             }
 
             frontendLogger.info('[Reanswer]', 'Sending request', { timeout: aiTimeout });
 
-            const result = await apiClient.post<{ answerText: string; analysis: string; knowledgePoints: string[] }>("/api/reanswer", requestBody, { timeout: aiTimeout || 180000 });
+            const result = await apiClient.post<ReanswerQuestionResult>("/api/reanswer", requestBody, { timeout: aiTimeout || 180000 });
 
             setData(prev => ({
                 ...prev,
                 answerText: result.answerText,
                 analysis: result.analysis,
-                // 保留原有知识点，不更新
+                knowledgePoints: result.knowledgePoints,
+                wrongAnswerText: result.wrongAnswerText || "",
+                mistakeAnalysis: result.mistakeAnalysis || "",
+                mistakeStatus: normalizeMistakeStatusForSave(
+                    result.mistakeStatus,
+                    result.wrongAnswerText,
+                    result.mistakeAnalysis
+                ),
             }));
 
             alert(t.editor.reanswerSuccess || '✅ Answer and analysis updated!');
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error("Reanswer failed:", error);
-            const msg = error.data?.message || '';
+            const apiError = error as { data?: { message?: string } };
+            const msg = apiError.data?.message || '';
 
-            // @ts-ignore - reanswer 可能不在类型定义中
-            const reanswerErrors = t.errors?.reanswer || {};
+            const reanswerErrors: ReanswerErrorMessages = t.errors?.reanswer || {};
             let errorText = reanswerErrors.default || 'Reanswer failed';
 
             if (msg.includes('AI_AUTH_ERROR')) {
@@ -145,7 +163,14 @@ export function CorrectionEditor({ initialData, onSave, onCancel, imagePreview, 
                             if (isSaving) return; // 防止重复点击
                             setIsSaving(true);
                             try {
-                                await onSave(data);
+                                await onSave({
+                                    ...data,
+                                    mistakeStatus: normalizeMistakeStatusForSave(
+                                        data.mistakeStatus,
+                                        data.wrongAnswerText,
+                                        data.mistakeAnalysis
+                                    ),
+                                });
                             } finally {
                                 setIsSaving(false);
                             }
@@ -274,6 +299,55 @@ export function CorrectionEditor({ initialData, onSave, onCancel, imagePreview, 
                             placeholder={t.editor.placeholder || "Supports Markdown and LaTeX..."}
                         />
                     </div>
+
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>{t.editor.mistakeAnalysisTitle || "错因分析"}</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="space-y-2">
+                                <Label>{t.editor.mistakeStatus || "作答状态"}</Label>
+                                <Select
+                                    value={data.mistakeStatus || "unknown"}
+                                    onValueChange={(val) => setData({ ...data, mistakeStatus: val as MistakeStatus })}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="not_attempted">{t.editor.mistakeStatuses?.notAttempted || "不会做"}</SelectItem>
+                                        <SelectItem value="wrong_attempt">{t.editor.mistakeStatuses?.wrongAttempt || "做错了"}</SelectItem>
+                                        <SelectItem value="unknown">{t.editor.mistakeStatuses?.unknown || "未判断"}</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-2">
+                                <Label>{t.editor.wrongAnswerText || "错误解答原文"}</Label>
+                                <Textarea
+                                    value={data.wrongAnswerText || ""}
+                                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setData({
+                                        ...data,
+                                        wrongAnswerText: e.target.value,
+                                        mistakeStatus: e.target.value.trim() ? "wrong_attempt" : data.mistakeStatus,
+                                    })}
+                                    className="min-h-[100px] font-mono text-sm"
+                                    placeholder={t.editor.wrongAnswerPlaceholder || "如果图片里没有错误解答，可留空"}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>{t.editor.mistakeAnalysis || "错因分析"}</Label>
+                                <Textarea
+                                    value={data.mistakeAnalysis || ""}
+                                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setData({
+                                        ...data,
+                                        mistakeAnalysis: e.target.value,
+                                    })}
+                                    className="min-h-[140px] font-mono text-sm"
+                                    placeholder={t.editor.mistakeAnalysisPlaceholder || "分析错误可能发生在哪一步、为什么错、导致什么后果"}
+                                />
+                            </div>
+                        </CardContent>
+                    </Card>
                 </div>
 
                 {/* 右侧：预览区 */}
@@ -302,6 +376,34 @@ export function CorrectionEditor({ initialData, onSave, onCancel, imagePreview, 
                         </CardHeader>
                         <CardContent>
                             <MarkdownRenderer content={data.analysis} />
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>{t.editor.preview?.mistakeAnalysis || "错因分析预览"}</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-3 text-sm">
+                            <div className="text-muted-foreground">
+                                {t.editor.mistakeStatus || "作答状态"}：
+                                {data.mistakeStatus === 'wrong_attempt'
+                                    ? (t.editor.mistakeStatuses?.wrongAttempt || "做错了")
+                                    : data.mistakeStatus === 'not_attempted'
+                                        ? (t.editor.mistakeStatuses?.notAttempted || "不会做")
+                                        : (t.editor.mistakeStatuses?.unknown || "未判断")}
+                            </div>
+                            {data.wrongAnswerText && (
+                                <div>
+                                    <div className="font-medium mb-1">{t.editor.wrongAnswerText || "错误解答原文"}</div>
+                                    <MarkdownRenderer content={data.wrongAnswerText} />
+                                </div>
+                            )}
+                            {data.mistakeAnalysis && (
+                                <div>
+                                    <div className="font-medium mb-1">{t.editor.mistakeAnalysis || "错因分析"}</div>
+                                    <MarkdownRenderer content={data.mistakeAnalysis} />
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
                 </div>

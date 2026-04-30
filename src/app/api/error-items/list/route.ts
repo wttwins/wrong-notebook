@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
 import { authOptions } from "@/lib/auth";
 import { getServerSession } from "next-auth";
 import { unauthorized, internalError } from "@/lib/api-errors";
@@ -39,7 +40,7 @@ export async function GET(req: Request) {
             return unauthorized("No user found in DB");
         }
 
-        const whereClause: any = {
+        const whereClause: Prisma.ErrorItemWhereInput = {
             userId: user.id,
         };
 
@@ -49,7 +50,7 @@ export async function GET(req: Request) {
 
         // 搜索条件需要使用 AND 包装，避免与其他 OR 条件冲突
         // 最终的 whereClause.AND 会包含所有需要同时满足的条件
-        const andConditions: any[] = [];
+        const andConditions: Prisma.ErrorItemWhereInput[] = [];
 
         if (query) {
             // 搜索条件：在题目、解析、知识点中任一匹配即可
@@ -57,6 +58,8 @@ export async function GET(req: Request) {
                 OR: [
                     { questionText: { contains: query } },
                     { analysis: { contains: query } },
+                    { wrongAnswerText: { contains: query } },
+                    { mistakeAnalysis: { contains: query } },
                     { knowledgePoints: { contains: query } },
                 ]
             });
@@ -70,7 +73,7 @@ export async function GET(req: Request) {
         // Time range filter
         if (timeRange && timeRange !== "all") {
             const now = new Date();
-            let startDate = new Date();
+            const startDate = new Date();
 
             if (timeRange === "week") {
                 startDate.setDate(now.getDate() - 7);
@@ -172,7 +175,7 @@ export async function GET(req: Request) {
     }
 }
 
-function buildGradeFilter(gradeSemester: string) {
+function buildGradeFilter(gradeSemester: string): Prisma.ErrorItemWhereInput {
     // 1. 恢复别名映射表 (Support aliases like 初一 for 七年级)
     const gradeMap: Record<string, string[]> = {
         "七年级": ["七年级", "初一", "7年级", "七"],
@@ -216,7 +219,7 @@ function buildGradeFilter(gradeSemester: string) {
 
     // 3. 构建多重组合查询条件
     // 对每一个可能的别名，生成多种格式变体
-    const orConditions: any[] = [];
+    const orConditions: Prisma.ErrorItemWhereInput[] = [];
 
     targetGrades.forEach(grade => {
         // 变体 1: 仅年级 (如果没有学期限制)

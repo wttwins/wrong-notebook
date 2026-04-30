@@ -1,12 +1,18 @@
 import { GoogleGenAI } from "@google/genai";
-import { AIService, ParsedQuestion, DifficultyLevel, AIConfig } from "./types";
+import { AIService, ParsedQuestion, DifficultyLevel, AIConfig, ReanswerQuestionResult } from "./types";
 import { generateAnalyzePrompt, generateSimilarQuestionPrompt } from './prompts';
 import { safeParseParsedQuestion } from './schema';
 import { getAppConfig } from '../config';
 import { getMathTagsFromDB, getTagsFromDB } from './tag-service';
 import { createLogger } from '../logger';
+import { normalizeMistakeStatusForSave } from '../mistake-status';
 
 const logger = createLogger('ai:gemini');
+
+type GeminiContent = string | Array<
+    { text: string } |
+    { inlineData: { mimeType: string; data: string } }
+>;
 
 export class GeminiProvider implements AIService {
     private ai: GoogleGenAI;
@@ -101,6 +107,9 @@ export class GeminiProvider implements AIService {
         const subjectRaw = this.extractTag(text, "subject");
         const knowledgePointsRaw = this.extractTag(text, "knowledge_points");
         const requiresImageRaw = this.extractTag(text, "requires_image");
+        const wrongAnswerText = this.extractTag(text, "wrong_answer_text") || "";
+        const mistakeAnalysis = this.extractTag(text, "mistake_analysis") || "";
+        const mistakeStatusRaw = this.extractTag(text, "mistake_status");
 
         // Basic Validation
         if (!questionText || !answerText || !analysis) {
@@ -123,12 +132,16 @@ export class GeminiProvider implements AIService {
 
         // Process requiresImage
         const requiresImage = requiresImageRaw?.toLowerCase().trim() === 'true';
+        const mistakeStatus = normalizeMistakeStatusForSave(mistakeStatusRaw, wrongAnswerText, mistakeAnalysis);
 
         // Construct Result
         const result: ParsedQuestion = {
             questionText,
             answerText,
             analysis,
+            wrongAnswerText,
+            mistakeAnalysis,
+            mistakeStatus,
             subject,
             knowledgePoints,
             requiresImage
@@ -277,7 +290,7 @@ export class GeminiProvider implements AIService {
         }
     }
 
-    async reanswerQuestion(questionText: string, language: 'zh' | 'en' = 'zh', subject?: string | null, imageBase64?: string): Promise<{ answerText: string; analysis: string; knowledgePoints: string[] }> {
+    async reanswerQuestion(questionText: string, language: 'zh' | 'en' = 'zh', subject?: string | null, imageBase64?: string): Promise<ReanswerQuestionResult> {
         const { generateReanswerPrompt } = await import('./prompts');
         const prompt = generateReanswerPrompt(language, questionText, subject);
 
@@ -292,7 +305,7 @@ export class GeminiProvider implements AIService {
 
         try {
             // 根据是否有图片构建不同的请求内容
-            let contents: any;
+            let contents: GeminiContent;
             if (imageBase64) {
                 // 移除 data:image/xxx;base64, 前缀（如果存在）
                 const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
@@ -320,10 +333,17 @@ export class GeminiProvider implements AIService {
             const analysis = this.extractTag(text, "analysis") || "";
             const knowledgePointsRaw = this.extractTag(text, "knowledge_points") || "";
             const knowledgePointsParsed = knowledgePointsRaw.split(/[,，\n]/).map(k => k.trim()).filter(k => k.length > 0);
+            const wrongAnswerText = this.extractTag(text, "wrong_answer_text") || "";
+            const mistakeAnalysis = this.extractTag(text, "mistake_analysis") || "";
+            const mistakeStatus = normalizeMistakeStatusForSave(
+                this.extractTag(text, "mistake_status"),
+                wrongAnswerText,
+                mistakeAnalysis
+            );
 
             logger.info('Reanswer parsed successfully');
 
-            return { answerText, analysis, knowledgePoints: knowledgePointsParsed };
+            return { answerText, analysis, knowledgePoints: knowledgePointsParsed, wrongAnswerText, mistakeAnalysis, mistakeStatus };
 
         } catch (error) {
             logger.error({ error, stack: error instanceof Error ? error.stack : undefined }, 'Error during reanswer');

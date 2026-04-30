@@ -90,6 +90,16 @@ describe('AI Prompts', () => {
             expect(prompt).not.toContain('{{tag_list}}');
             expect(prompt).not.toContain('{{provider_hints}}');
         });
+
+        it('应该要求 AI 输出错因分析相关 XML 标签', () => {
+            const prompt = generateAnalyzePrompt('zh', null, '数学');
+            expect(prompt).toContain('<wrong_answer_text>');
+            expect(prompt).toContain('<mistake_status>');
+            expect(prompt).toContain('<mistake_analysis>');
+            expect(prompt).toContain('wrong_attempt');
+            expect(prompt).toContain('not_attempted');
+            expect(prompt).toContain('unknown');
+        });
     });
 
     describe('generateSimilarQuestionPrompt', () => {
@@ -170,6 +180,21 @@ describe('AI Prompts', () => {
             expect(prompt).not.toContain('{{question_text}}');
             expect(prompt).not.toContain('{{language_instruction}}');
             expect(prompt).not.toContain('{{provider_hints}}');
+        });
+
+        it('重新解题提示词应该要求同步输出新的错因分析', () => {
+            const prompt = generateReanswerPrompt('zh', questionText, '数学');
+            expect(prompt).toContain('<wrong_answer_text>');
+            expect(prompt).toContain('<mistake_status>');
+            expect(prompt).toContain('<mistake_analysis>');
+            expect(prompt).toContain('重新判断');
+        });
+
+        it('重新解题提示词不应允许无依据推断学生错因', () => {
+            const prompt = generateReanswerPrompt('zh', questionText, '数学');
+            expect(prompt).not.toContain('推断');
+            expect(prompt).toContain('不要猜测');
+            expect(prompt).toContain('当前图片中可见');
         });
     });
 
