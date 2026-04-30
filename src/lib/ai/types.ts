@@ -2,8 +2,9 @@
 export type { ParsedQuestionFromSchema as ParsedQuestion } from './schema';
 import type { ParsedQuestionFromSchema } from './schema';
 
-// Re-export MistakeStatus from the single source of truth
-export type { MistakeStatus } from '../mistake-status';
+// Import and re-export MistakeStatus from the single source of truth
+import type { MistakeStatus } from '../mistake-status';
+export type { MistakeStatus };
 
 export type DifficultyLevel = 'easy' | 'medium' | 'hard' | 'harder';
 

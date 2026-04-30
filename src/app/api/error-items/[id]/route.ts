@@ -114,7 +114,7 @@ export async function PUT(
             if (!targetSubject || targetSubject.userId !== user.id) {
                 return forbidden("Not authorized to move to this notebook");
             }
-            updateData.subjectId = subjectId === "" ? null : subjectId;
+            updateData.subject = subjectId === "" ? { disconnect: true } : { connect: { id: subjectId } };
         }
         if (mistakeStatus !== undefined || wrongAnswerText !== undefined || mistakeAnalysis !== undefined) {
             const nextWrongAnswerText = wrongAnswerText !== undefined ? wrongAnswerText : errorItem.wrongAnswerText;
