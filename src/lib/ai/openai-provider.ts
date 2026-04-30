@@ -108,7 +108,7 @@ export class OpenAIProvider implements AIService {
 
         // Process requiresImage (default to false if not present or unrecognized)
         const requiresImage = requiresImageRaw?.toLowerCase().trim() === 'true';
-        const mistakeStatus = normalizeMistakeStatusForSave(mistakeStatusRaw, wrongAnswerText, mistakeAnalysis);
+        const mistakeStatus = normalizeMistakeStatusForSave(mistakeStatusRaw, wrongAnswerText);
 
         // Construct Result
         const result: ParsedQuestion = {
@@ -368,8 +368,7 @@ export class OpenAIProvider implements AIService {
             const mistakeAnalysis = this.extractTag(text, "mistake_analysis") || "";
             const mistakeStatus = normalizeMistakeStatusForSave(
                 this.extractTag(text, "mistake_status"),
-                wrongAnswerText,
-                mistakeAnalysis
+                wrongAnswerText
             );
 
             logger.info('Reanswer parsed successfully');

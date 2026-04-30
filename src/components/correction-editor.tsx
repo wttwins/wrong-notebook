@@ -116,8 +116,7 @@ export function CorrectionEditor({ initialData, onSave, onCancel, imagePreview, 
                 mistakeAnalysis: result.mistakeAnalysis || "",
                 mistakeStatus: normalizeMistakeStatusForSave(
                     result.mistakeStatus,
-                    result.wrongAnswerText,
-                    result.mistakeAnalysis
+                    result.wrongAnswerText
                 ),
             }));
 
@@ -167,8 +166,7 @@ export function CorrectionEditor({ initialData, onSave, onCancel, imagePreview, 
                                     ...data,
                                     mistakeStatus: normalizeMistakeStatusForSave(
                                         data.mistakeStatus,
-                                        data.wrongAnswerText,
-                                        data.mistakeAnalysis
+                                        data.wrongAnswerText
                                     ),
                                 });
                             } finally {

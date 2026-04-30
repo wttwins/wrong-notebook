@@ -9,10 +9,8 @@ export function normalizeMistakeStatus(status?: unknown): MistakeStatus {
 
 export function normalizeMistakeStatusForSave(
     status?: unknown,
-    wrongAnswerText?: string | null,
-    _mistakeAnalysis?: string | null
+    wrongAnswerText?: string | null
 ): MistakeStatus {
-    void _mistakeAnalysis;
     if ((wrongAnswerText || '').trim()) {
         return 'wrong_attempt';
     }

@@ -121,8 +121,7 @@ export async function PUT(
             const nextMistakeAnalysis = mistakeAnalysis !== undefined ? mistakeAnalysis : errorItem.mistakeAnalysis;
             updateData.mistakeStatus = normalizeMistakeStatusForSave(
                 mistakeStatus,
-                nextWrongAnswerText,
-                nextMistakeAnalysis
+                nextWrongAnswerText
             );
         }
 

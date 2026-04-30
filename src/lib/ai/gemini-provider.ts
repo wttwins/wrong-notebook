@@ -132,7 +132,7 @@ export class GeminiProvider implements AIService {
 
         // Process requiresImage
         const requiresImage = requiresImageRaw?.toLowerCase().trim() === 'true';
-        const mistakeStatus = normalizeMistakeStatusForSave(mistakeStatusRaw, wrongAnswerText, mistakeAnalysis);
+        const mistakeStatus = normalizeMistakeStatusForSave(mistakeStatusRaw, wrongAnswerText);
 
         // Construct Result
         const result: ParsedQuestion = {
@@ -337,8 +337,7 @@ export class GeminiProvider implements AIService {
             const mistakeAnalysis = this.extractTag(text, "mistake_analysis") || "";
             const mistakeStatus = normalizeMistakeStatusForSave(
                 this.extractTag(text, "mistake_status"),
-                wrongAnswerText,
-                mistakeAnalysis
+                wrongAnswerText
             );
 
             logger.info('Reanswer parsed successfully');

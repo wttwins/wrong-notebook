@@ -314,8 +314,7 @@ export default function ErrorDetailPage() {
         try {
             const normalizedStatus = normalizeMistakeStatusForSave(
                 mistakeStatusInput,
-                wrongAnswerInput,
-                mistakeAnalysisInput
+                wrongAnswerInput
             );
             await apiClient.put(`/api/error-items/${item?.id}`, {
                 wrongAnswerText: wrongAnswerInput,

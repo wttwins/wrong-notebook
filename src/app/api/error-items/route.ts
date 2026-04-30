@@ -167,7 +167,7 @@ export async function POST(req: Request) {
                     analysis,
                     wrongAnswerText: wrongAnswerText || null,
                     mistakeAnalysis: mistakeAnalysis || null,
-                    mistakeStatus: normalizeMistakeStatusForSave(mistakeStatus, wrongAnswerText, mistakeAnalysis),
+                    mistakeStatus: normalizeMistakeStatusForSave(mistakeStatus, wrongAnswerText),
                     knowledgePoints: JSON.stringify(tagNames),
                     gradeSemester: finalGradeSemester,
                     paperLevel: paperLevel,
