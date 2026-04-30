@@ -79,7 +79,7 @@ export async function PUT(
             user = await prisma.user.findFirst();
         }
 
-        if (!user) {,
+        if (!user) {
             return unauthorized();
         }
 
@@ -115,6 +115,7 @@ export async function PUT(
                 return forbidden("Not authorized to move to this notebook");
             }
             updateData.subjectId = subjectId === "" ? null : subjectId;
+        }
         if (mistakeStatus !== undefined || wrongAnswerText !== undefined || mistakeAnalysis !== undefined) {
             const nextWrongAnswerText = wrongAnswerText !== undefined ? wrongAnswerText : errorItem.wrongAnswerText;
             const nextMistakeAnalysis = mistakeAnalysis !== undefined ? mistakeAnalysis : errorItem.mistakeAnalysis;
