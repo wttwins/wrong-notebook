@@ -1,0 +1,117 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    name: Version Sync & GitHub Release
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # 需要写权限来推送版本更新
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0  # 完整历史，用于生成 changelog
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          VERSION="${TAG#v}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Tag: $TAG, Version: $VERSION"
+
+      - name: Check if release version (no pre-release suffix)
+        id: is_release
+        run: |
+          if [[ "${{ steps.version.outputs.tag }}" == *-* ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Update package.json version
+        run: |
+          npm version "${{ steps.version.outputs.version }}" --no-git-tag-version --allow-same-version
+          echo "Updated package.json to ${{ steps.version.outputs.version }}"
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # 找到上一个 tag
+          PREV_TAG=$(git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -2 | tail -1)
+
+          if [ -z "$PREV_TAG" ] || [ "$PREV_TAG" = "${{ steps.version.outputs.tag }}" ]; then
+            RANGE="HEAD"
+            echo "首次发版，列出所有 commit"
+          else
+            RANGE="${{ steps.version.outputs.tag }}...${PREV_TAG}"
+            echo "范围: $RANGE"
+          fi
+
+          # 分类提取 commit
+          FEATS=$(git log "$RANGE" --pretty=format:"%s" --no-merges | grep -iE '^feat[:(]' | sed 's/^feat: //; s/^feat([^)]*): //' || true)
+          FIXES=$(git log "$RANGE" --pretty=format:"%s" --no-merges | grep -iE '^fix[:(]' | sed 's/^fix: //; s/^fix([^)]*): //' || true)
+
+          # 组装 changelog
+          CHANGELOG=""
+          if [ -n "$FEATS" ]; then
+            CHANGELOG="### ✨ 新功能"$'\n'
+            while IFS= read -r line; do
+              CHANGELOG+="- ${line}"$'\n'
+            done <<< "$FEATS"
+          fi
+
+          if [ -n "$FIXES" ]; then
+            [ -n "$CHANGELOG" ] && CHANGELOG+=$'\n'
+            CHANGELOG+="### 🛠 修复"$'\n'
+            while IFS= read -r line; do
+              CHANGELOG+="- ${line}"$'\n'
+            done <<< "$FIXES"
+          fi
+
+          if [ -z "$CHANGELOG" ]; then
+            CHANGELOG="- 无重大变更"
+          fi
+
+          # 写入输出
+          {
+            echo "changelog<<EOF"
+            echo "$CHANGELOG"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "Changelog:"
+          echo "$CHANGELOG"
+
+      - name: Commit version update
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json 2>/dev/null || true
+          git diff --cached --quiet || git commit -m "chore: bump version to ${{ steps.version.outputs.version }} [skip ci]"
+          git push origin HEAD:main
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }}
+          body: |
+            ${{ steps.changelog.outputs.changelog }}
+          prerelease: ${{ steps.is_release.outputs.prerelease == 'true' }}
+          generate_release_notes: false
