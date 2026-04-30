@@ -4,6 +4,97 @@
  */
 
 /**
+ * 将 gradeSemester 字符串转换为年级数字（用于标签过滤）
+ * 支持格式：初一/七年级/7年级/小学三年级/高一 等
+ * @returns 7-12 或 null（无法识别时）
+ */
+export function gradeSemesterToGradeNumber(gradeSemester: string): 7 | 8 | 9 | 10 | 11 | 12 | null {
+  if (!gradeSemester) return null;
+  const gs = gradeSemester.toLowerCase();
+
+  // 小学：primary_3 → 不映射到 7-12，返回 null
+  if (gs.startsWith('primary') || gs.includes('小学') || gs.match(/[一二三四五六]年级/)) {
+    return null;
+  }
+
+  // 初中
+  if (gs.includes('初一') || gs.includes('七年级') || gs.includes('7年级') || gs === 'junior_high_1') return 7;
+  if (gs.includes('初二') || gs.includes('八年级') || gs.includes('8年级') || gs === 'junior_high_2') return 8;
+  if (gs.includes('初三') || gs.includes('九年级') || gs.includes('9年级') || gs === 'junior_high_3') return 9;
+
+  // 高中
+  if (gs.includes('高一') || gs.includes('10年级') || gs === 'senior_high_1') return 10;
+  if (gs.includes('高二') || gs.includes('11年级') || gs === 'senior_high_2') return 11;
+  if (gs.includes('高三') || gs.includes('12年级') || gs === 'senior_high_3') return 12;
+
+  return null;
+}
+
+/**
+ * 将 gradeSemester 字符串转换为中文年级显示名称
+ * 用于注入到 AI 提示词中
+ * @returns 中文年级名（如"小学三年级"、"初中二年级"）或 null
+ */
+export function gradeSemesterToDisplayName(gradeSemester: string): string | null {
+  if (!gradeSemester) return null;
+  const gs = gradeSemester;
+
+  // 小学
+  const primaryMatch = gs.match(/primary[_\s]?(\d)/);
+  if (primaryMatch) {
+    const numMap: Record<string, string> = { '1': '一', '2': '二', '3': '三', '4': '四', '5': '五', '6': '六' };
+    return `小学${numMap[primaryMatch[1]] || primaryMatch[1]}年级`;
+  }
+  if (gs.includes('小学')) {
+    // "小学三年级" 格式，直接返回年级部分
+    const m = gs.match(/小学([一-龥\d]+年级?)/);
+    if (m) return `小学${m[1].replace('年级', '')}年级`.replace('小学小学', '小学');
+    return gs.replace(/[上下]$/, '').replace(/[，,].*$/, '').trim();
+  }
+  if (gs.match(/[一二三四五六]年级/) && !gs.includes('初') && !gs.includes('高')) {
+    return `小学${gs.replace(/[上下]$/, '').replace(/[，,].*$/, '').trim()}`;
+  }
+
+  // 初中
+  const juniorMatch = gs.match(/junior_high[_\s]?(\d)/);
+  if (juniorMatch) {
+    const numMap: Record<string, string> = { '1': '一', '2': '二', '3': '三' };
+    return `初中${numMap[juniorMatch[1]] || juniorMatch[1]}年级`;
+  }
+  if (gs.includes('初一')) return '初中一年级';
+  if (gs.includes('初二')) return '初中二年级';
+  if (gs.includes('初三')) return '初中三年级';
+  if (gs.includes('七年级')) return '初中一年级';
+  if (gs.includes('八年级')) return '初中二年级';
+  if (gs.includes('九年级')) return '初中三年级';
+
+  // 高中
+  const seniorMatch = gs.match(/senior_high[_\s]?(\d)/);
+  if (seniorMatch) {
+    const numMap: Record<string, string> = { '1': '一', '2': '二', '3': '三' };
+    return `高中${numMap[seniorMatch[1]] || seniorMatch[1]}年级`;
+  }
+  if (gs.includes('高一')) return '高中一年级';
+  if (gs.includes('高二')) return '高中二年级';
+  if (gs.includes('高三')) return '高中三年级';
+
+  return null;
+}
+
+/**
+ * 生成学历约束指令
+ * @param gradeSemester - 年级学期字符串
+ * @returns 约束指令字符串，无学历信息时返回空字符串
+ */
+export function generateGradeInstruction(gradeSemester?: string | null): string {
+  if (!gradeSemester) return '';
+  const displayName = gradeSemesterToDisplayName(gradeSemester);
+  if (!displayName) return '';
+
+  return `\n【学历约束】\n本题目标年级：${displayName}\n请严格使用该年级课程标准范围内的方法解答，禁止使用超纲知识。\n`;
+}
+
+/**
  * Options for customizing prompts
  */
 export interface PromptOptions {
@@ -82,6 +173,7 @@ export const DEFAULT_ANALYZE_TEMPLATE = `【角色与核心任务 (ROLE AND CORE
 3. **内容完整**：如果包含子问题，请在 question_text 中完整列出。
 4. **禁止图片**：严禁包含任何图片链接或 markdown 图片语法。
 
+{{grade_instruction}}
 {{provider_hints}}`;
 
 export const DEFAULT_SIMILAR_TEMPLATE = `你是一位资深的K12教育题目生成专家，具备跨学科的题目创作能力。你的核心任务是**根据以下原题和知识点，举一反三生成高质量教学题目**，帮助学生巩固知识并拓展解题思路。
@@ -134,6 +226,7 @@ export const DEFAULT_SIMILAR_TEMPLATE = `你是一位资深的K12教育题目生
 ###关键格式与内容约束 (CRITICAL RULES) !!!
 1. **纯文本**：内容作为纯文本处理，**不要转义反斜杠**。
 
+{{grade_instruction}}
 {{provider_hints}}`;
 
 /**
@@ -187,7 +280,8 @@ export function generateAnalyzePrompt(
   language: 'zh' | 'en',
   grade?: 7 | 8 | 9 | 10 | 11 | 12 | null,
   subject?: string | null,
-  options?: PromptOptions
+  options?: PromptOptions,
+  gradeSemester?: string | null
 ): string {
   const langInstruction = language === 'zh'
     ? "IMPORTANT: For the 'analysis' field, use Simplified Chinese. For 'questionText' and 'answerText', YOU MUST USE THE SAME LANGUAGE AS THE ORIGINAL QUESTION. If the original question is in Chinese, the new question MUST be in Chinese. If the original is in English, keep it in English. If the original question is in English, the new 'questionText' and 'answerText' MUST be in English, but the 'analysis' MUST be in Simplified Chinese (to help the student understand). "
@@ -275,6 +369,7 @@ ${englishTagsString}`;
   return replaceVariables(template, {
     language_instruction: langInstruction,
     knowledge_points_list: tagsSection,
+    grade_instruction: generateGradeInstruction(gradeSemester),
     provider_hints: options?.providerHints || ''
   }).trim();
 }
@@ -292,7 +387,8 @@ export function generateSimilarQuestionPrompt(
   originalQuestion: string,
   knowledgePoints: string[],
   difficulty: 'easy' | 'medium' | 'hard' | 'harder' = 'medium',
-  options?: PromptOptions
+  options?: PromptOptions,
+  gradeSemester?: string | null
 ): string {
   const langInstruction = language === 'zh'
     ? "IMPORTANT: Provide the output based on the 'Original Question' language. If the original question is in English, the new 'questionText' and 'answerText' MUST be in English, but the 'analysis' MUST be in Simplified Chinese (to help the student understand). If the original is in Chinese, everything MUST be in Simplified Chinese."
@@ -313,6 +409,7 @@ export function generateSimilarQuestionPrompt(
     language_instruction: langInstruction,
     original_question: originalQuestion.replace(/"/g, '\\"').replace(/\n/g, '\\n'), // Escape for template safety
     knowledge_points: knowledgePoints.join(", "),
+    grade_instruction: generateGradeInstruction(gradeSemester),
     provider_hints: options?.providerHints || ''
   }).trim();
 }
@@ -369,6 +466,7 @@ export const DEFAULT_REANSWER_TEMPLATE = `【角色与核心任务 (ROLE AND COR
 2. **纯文本**：内容作为纯文本处理，**不要转义反斜杠**。
 3. **题目不变**：不要修改或重复题目内容，只提供答案和解析。
 
+{{grade_instruction}}
 {{provider_hints}}`;
 
 /**
@@ -382,7 +480,8 @@ export function generateReanswerPrompt(
   language: 'zh' | 'en',
   questionText: string,
   subject?: string | null,
-  options?: PromptOptions
+  options?: PromptOptions,
+  gradeSemester?: string | null
 ): string {
   const langInstruction = language === 'zh'
     ? "IMPORTANT: 解析必须使用简体中文。如果题目是英文，答案保持英文，但解析用中文。"
@@ -398,6 +497,7 @@ export function generateReanswerPrompt(
     language_instruction: langInstruction,
     question_text: questionText,
     subject_hint: subjectHint,
+    grade_instruction: generateGradeInstruction(gradeSemester),
     provider_hints: options?.providerHints || ''
   }).trim();
 }

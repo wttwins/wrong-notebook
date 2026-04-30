@@ -3,6 +3,7 @@ export type ReanswerRequestBody = {
     language: 'zh' | 'en';
     subject: string;
     imageBase64?: string;
+    gradeSemester?: string;
 };
 
 export function buildReanswerRequestBody({
@@ -10,11 +11,13 @@ export function buildReanswerRequestBody({
     language,
     subject,
     imagePreview,
+    gradeSemester,
 }: {
     questionText: string;
     language: 'zh' | 'en';
     subject: string;
     imagePreview?: string | null;
+    gradeSemester?: string;
 }): ReanswerRequestBody {
     const requestBody: ReanswerRequestBody = {
         questionText,
@@ -24,6 +27,10 @@ export function buildReanswerRequestBody({
 
     if (imagePreview) {
         requestBody.imageBase64 = imagePreview;
+    }
+
+    if (gradeSemester) {
+        requestBody.gradeSemester = gradeSemester;
     }
 
     return requestBody;

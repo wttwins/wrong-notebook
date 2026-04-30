@@ -7,6 +7,9 @@ import {
     generateAnalyzePrompt,
     generateSimilarQuestionPrompt,
     generateReanswerPrompt,
+    generateGradeInstruction,
+    gradeSemesterToDisplayName,
+    gradeSemesterToGradeNumber,
     DEFAULT_ANALYZE_TEMPLATE,
     DEFAULT_SIMILAR_TEMPLATE,
     DEFAULT_REANSWER_TEMPLATE,
@@ -213,6 +216,133 @@ describe('AI Prompts', () => {
             const prompt = generateReanswerPrompt('zh', questionWithSpecialChars);
             expect(prompt).toContain('x²');
             expect(prompt).toContain('r > 0');
+        });
+    });
+
+    describe('gradeSemesterToDisplayName', () => {
+        it('应该转换 primary_3 为 小学三年级', () => {
+            expect(gradeSemesterToDisplayName('primary_3')).toBe('小学三年级');
+        });
+
+        it('应该转换 junior_high_2 为 初中二年级', () => {
+            expect(gradeSemesterToDisplayName('junior_high_2')).toBe('初中二年级');
+        });
+
+        it('应该转换 senior_high_1 为 高中一年级', () => {
+            expect(gradeSemesterToDisplayName('senior_high_1')).toBe('高中一年级');
+        });
+
+        it('应该转换 初一 为 初中一年级', () => {
+            expect(gradeSemesterToDisplayName('初一')).toBe('初中一年级');
+        });
+
+        it('应该转换 初二上 为 初中二年级', () => {
+            expect(gradeSemesterToDisplayName('初二上')).toBe('初中二年级');
+        });
+
+        it('应该转换 高一 为 高中一年级', () => {
+            expect(gradeSemesterToDisplayName('高一')).toBe('高中一年级');
+        });
+
+        it('应该转换 七年级 为 初中一年级', () => {
+            expect(gradeSemesterToDisplayName('七年级')).toBe('初中一年级');
+        });
+
+        it('应该转换 八年级上 为 初中二年级', () => {
+            expect(gradeSemesterToDisplayName('八年级上')).toBe('初中二年级');
+        });
+
+        it('空字符串应返回 null', () => {
+            expect(gradeSemesterToDisplayName('')).toBeNull();
+        });
+
+        it('无法识别的格式应返回 null', () => {
+            expect(gradeSemesterToDisplayName('unknown_format')).toBeNull();
+        });
+    });
+
+    describe('gradeSemesterToGradeNumber', () => {
+        it('应该转换 初一 为 7', () => {
+            expect(gradeSemesterToGradeNumber('初一')).toBe(7);
+        });
+
+        it('应该转换 初二 为 8', () => {
+            expect(gradeSemesterToGradeNumber('初二')).toBe(8);
+        });
+
+        it('应该转换 高一 为 10', () => {
+            expect(gradeSemesterToGradeNumber('高一')).toBe(10);
+        });
+
+        it('应该转换 junior_high_1 为 7', () => {
+            expect(gradeSemesterToGradeNumber('junior_high_1')).toBe(7);
+        });
+
+        it('小学应返回 null', () => {
+            expect(gradeSemesterToGradeNumber('primary_3')).toBeNull();
+        });
+
+        it('空字符串应返回 null', () => {
+            expect(gradeSemesterToGradeNumber('')).toBeNull();
+        });
+    });
+
+    describe('generateGradeInstruction', () => {
+        it('无 gradeSemester 时返回空字符串', () => {
+            expect(generateGradeInstruction()).toBe('');
+            expect(generateGradeInstruction(null)).toBe('');
+            expect(generateGradeInstruction('')).toBe('');
+        });
+
+        it('有效的 gradeSemester 应生成约束指令', () => {
+            const instruction = generateGradeInstruction('初二上');
+            expect(instruction).toContain('学历约束');
+            expect(instruction).toContain('初中二年级');
+            expect(instruction).toContain('禁止使用超纲知识');
+        });
+
+        it('无法识别的 gradeSemester 应返回空字符串', () => {
+            expect(generateGradeInstruction('unknown_format')).toBe('');
+        });
+    });
+
+    describe('gradeSemester 学历约束注入', () => {
+        it('analyze 提示词应包含学历约束（当提供 gradeSemester 时）', () => {
+            const prompt = generateAnalyzePrompt('zh', 8, '数学', undefined, '初二上');
+            expect(prompt).toContain('学历约束');
+            expect(prompt).toContain('初中二年级');
+        });
+
+        it('analyze 提示词不应包含学历约束（当未提供 gradeSemester 时）', () => {
+            const prompt = generateAnalyzePrompt('zh', 8, '数学');
+            expect(prompt).not.toContain('学历约束');
+        });
+
+        it('similar 提示词应包含学历约束（当提供 gradeSemester 时）', () => {
+            const prompt = generateSimilarQuestionPrompt('zh', '1+1=?', ['算术'], 'medium', undefined, 'primary_3');
+            expect(prompt).toContain('学历约束');
+            expect(prompt).toContain('小学三年级');
+        });
+
+        it('similar 提示词不应包含学历约束（当未提供 gradeSemester 时）', () => {
+            const prompt = generateSimilarQuestionPrompt('zh', '1+1=?', ['算术']);
+            expect(prompt).not.toContain('学历约束');
+        });
+
+        it('reanswer 提示词应包含学历约束（当提供 gradeSemester 时）', () => {
+            const prompt = generateReanswerPrompt('zh', '1+1=?', '数学', undefined, '高一');
+            expect(prompt).toContain('学历约束');
+            expect(prompt).toContain('高中一年级');
+        });
+
+        it('reanswer 提示词不应包含学历约束（当未提供 gradeSemester 时）', () => {
+            const prompt = generateReanswerPrompt('zh', '1+1=?', '数学');
+            expect(prompt).not.toContain('学历约束');
+        });
+
+        it('analyze 提示词不应包含未替换的 grade_instruction 占位符', () => {
+            const prompt = generateAnalyzePrompt('zh', 8, '数学', undefined, '初二上');
+            expect(prompt).not.toContain('{{grade_instruction}}');
         });
     });
 });

@@ -136,7 +136,7 @@ export class OpenAIProvider implements AIService {
         }
     }
 
-    async analyzeImage(imageBase64: string, mimeType: string = "image/jpeg", language: 'zh' | 'en' = 'zh', grade?: 7 | 8 | 9 | 10 | 11 | 12 | null, subject?: string | null): Promise<ParsedQuestion> {
+    async analyzeImage(imageBase64: string, mimeType: string = "image/jpeg", language: 'zh' | 'en' = 'zh', grade?: 7 | 8 | 9 | 10 | 11 | 12 | null, subject?: string | null, gradeSemester?: string | null): Promise<ParsedQuestion> {
         const config = getAppConfig();
 
         // 从数据库获取各学科标签
@@ -154,7 +154,7 @@ export class OpenAIProvider implements AIService {
             prefetchedChemistryTags,
             prefetchedBiologyTags,
             prefetchedEnglishTags,
-        });
+        }, gradeSemester);
 
         logger.box('🔍 AI Image Analysis Request', {
             provider: 'OpenAI',
@@ -245,11 +245,11 @@ export class OpenAIProvider implements AIService {
         }
     }
 
-    async generateSimilarQuestion(originalQuestion: string, knowledgePoints: string[], language: 'zh' | 'en' = 'zh', difficulty: DifficultyLevel = 'medium'): Promise<ParsedQuestion> {
+    async generateSimilarQuestion(originalQuestion: string, knowledgePoints: string[], language: 'zh' | 'en' = 'zh', difficulty: DifficultyLevel = 'medium', gradeSemester?: string | null): Promise<ParsedQuestion> {
         const config = getAppConfig();
         const systemPrompt = generateSimilarQuestionPrompt(language, originalQuestion, knowledgePoints, difficulty, {
             customTemplate: config.prompts?.similar
-        });
+        }, gradeSemester);
         const userPrompt = `\nOriginal Question: "${originalQuestion}"\nKnowledge Points: ${knowledgePoints.join(", ")}\n    `;
 
         logger.box('🎯 Generate Similar Question Request', {
@@ -296,9 +296,9 @@ export class OpenAIProvider implements AIService {
         }
     }
 
-    async reanswerQuestion(questionText: string, language: 'zh' | 'en' = 'zh', subject?: string | null, imageBase64?: string): Promise<ReanswerQuestionResult> {
+    async reanswerQuestion(questionText: string, language: 'zh' | 'en' = 'zh', subject?: string | null, imageBase64?: string, gradeSemester?: string | null): Promise<ReanswerQuestionResult> {
         const { generateReanswerPrompt } = await import('./prompts');
-        const prompt = generateReanswerPrompt(language, questionText, subject);
+        const prompt = generateReanswerPrompt(language, questionText, subject, undefined, gradeSemester);
 
         logger.info({
             provider: 'OpenAI',

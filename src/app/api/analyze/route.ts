@@ -3,6 +3,7 @@ import { getAIService } from "@/lib/ai";
 import { authOptions } from "@/lib/auth";
 import { getServerSession } from "next-auth";
 import { calculateGradeNumber, inferSubjectFromName } from "@/lib/knowledge-tags";
+import { calculateGrade } from "@/lib/grade-calculator";
 import { prisma } from "@/lib/prisma";
 import { badRequest, internalError, createErrorResponse, ErrorCode } from "@/lib/api-errors";
 import { createLogger } from "@/lib/logger";
@@ -48,6 +49,7 @@ export async function POST(req: Request) {
 
         // 先获取用户年级信息，用于动态生成 AI prompt 中的标签列表
         let userGrade: 7 | 8 | 9 | 10 | 11 | 12 | null = null;
+        let userGradeSemester: string | null = null;
         let subjectName: 'math' | 'physics' | 'chemistry' | 'biology' | 'english' | 'chinese' | 'history' | 'geography' | 'politics' | null = null;
 
         if (session?.user?.email) {
@@ -60,7 +62,10 @@ export async function POST(req: Request) {
 
                 if (user) {
                     userGrade = calculateGradeNumber(user.educationStage, user.enrollmentYear);
-                    logger.debug({ userGrade }, 'Calculated user grade');
+                    if (user.educationStage && user.enrollmentYear) {
+                        userGradeSemester = calculateGrade(user.educationStage, user.enrollmentYear, new Date(), 'zh');
+                    }
+                    logger.debug({ userGrade, userGradeSemester }, 'Calculated user grade');
                 }
 
                 // 获取错题本信息以推断学科
@@ -96,9 +101,9 @@ export async function POST(req: Request) {
         };
         const subjectChinese = subjectName ? subjectNameMapping[subjectName] : null;
 
-        logger.info({ userGrade, subject: subjectChinese }, 'Calling AI service for image analysis');
+        logger.info({ userGrade, userGradeSemester, subject: subjectChinese }, 'Calling AI service for image analysis');
         const aiService = getAIService();
-        const analysisResult = await aiService.analyzeImage(imageBase64, mimeType, language, userGrade, subjectChinese);
+        const analysisResult = await aiService.analyzeImage(imageBase64, mimeType, language, userGrade, subjectChinese, userGradeSemester);
 
         logger.debug({
             knowledgePointsCount: analysisResult.knowledgePoints?.length,

@@ -144,7 +144,8 @@ export class AzureOpenAIProvider implements AIService {
         mimeType: string = 'image/jpeg',
         language: 'zh' | 'en' = 'zh',
         grade?: 7 | 8 | 9 | 10 | 11 | 12 | null,
-        subject?: string | null
+        subject?: string | null,
+        gradeSemester?: string | null
     ): Promise<ParsedQuestion> {
         const config = getAppConfig();
 
@@ -163,7 +164,7 @@ export class AzureOpenAIProvider implements AIService {
             prefetchedChemistryTags,
             prefetchedBiologyTags,
             prefetchedEnglishTags,
-        });
+        }, gradeSemester);
 
         logger.box('🔍 AI Image Analysis Request', {
             provider: 'Azure OpenAI',
@@ -233,12 +234,13 @@ export class AzureOpenAIProvider implements AIService {
         originalQuestion: string,
         knowledgePoints: string[],
         language: 'zh' | 'en' = 'zh',
-        difficulty: DifficultyLevel = 'medium'
+        difficulty: DifficultyLevel = 'medium',
+        gradeSemester?: string | null
     ): Promise<ParsedQuestion> {
         const config = getAppConfig();
         const systemPrompt = generateSimilarQuestionPrompt(language, originalQuestion, knowledgePoints, difficulty, {
             customTemplate: config.prompts?.similar
-        });
+        }, gradeSemester);
         const userPrompt = `
 Original Question: "${originalQuestion}"
 Knowledge Points: ${knowledgePoints.join(", ")}
@@ -298,9 +300,10 @@ Knowledge Points: ${knowledgePoints.join(", ")}
         questionText: string,
         language: 'zh' | 'en' = 'zh',
         subject?: string | null,
-        imageBase64?: string
+        imageBase64?: string,
+        gradeSemester?: string | null
     ): Promise<ReanswerQuestionResult> {
-        const prompt = generateReanswerPrompt(language, questionText, subject);
+        const prompt = generateReanswerPrompt(language, questionText, subject, undefined, gradeSemester);
 
         logger.box('🔄 Reanswer Question Request', {
             provider: 'Azure OpenAI',

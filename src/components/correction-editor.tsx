@@ -95,6 +95,7 @@ export function CorrectionEditor({ initialData, onSave, onCancel, imagePreview, 
                 language,
                 subject: data.subject,
                 imagePreview,
+                gradeSemester: data.gradeSemester,
             });
 
             if (requestBody.imageBase64) {

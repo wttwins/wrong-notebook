@@ -20,13 +20,14 @@ export async function POST(req: Request) {
 
     try {
         const body = await req.json();
-        const { questionText, language = 'zh', subject, imageBase64 } = body;
+        const { questionText, language = 'zh', subject, imageBase64, gradeSemester } = body;
 
         logger.debug({
             questionLength: questionText?.length,
             language,
             subject,
-            hasImage: !!imageBase64
+            hasImage: !!imageBase64,
+            gradeSemester
         }, 'Reanswer request received');
 
         if (!questionText || questionText.trim().length === 0) {
@@ -37,7 +38,7 @@ export async function POST(req: Request) {
         const aiService = getAIService();
 
         // 根据是否有图片选择不同的重新解题方式
-        const result = await aiService.reanswerQuestion(questionText, language, subject, imageBase64);
+        const result = await aiService.reanswerQuestion(questionText, language, subject, imageBase64, gradeSemester);
 
         logger.info('Reanswer successful');
 
