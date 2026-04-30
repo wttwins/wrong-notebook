@@ -1045,7 +1045,7 @@ export function SettingsDialog() {
                                                         <span className="text-green-600">✓ {t.settings?.ai?.supported || "支持"}</span>
                                                     </div>
                                                     <div className="flex items-center gap-2">
-                                                        <span className="text-muted-foreground">{t.settings?.ai?.visionSupport || "图像识别"}:</span>
+                                                        <span className="text-muted-foreground">{t.settings?.ai?.visionSupport || "图像识别/多模态"}:</span>
                                                         {testResult.visionSupport ? (
                                                             <span className="text-green-600">✓ {t.settings?.ai?.supported || "支持"}</span>
                                                         ) : (
@@ -1056,6 +1056,7 @@ export function SettingsDialog() {
                                                             }</span>
                                                         )}
                                                     </div>
+                                                    <p className="text-muted-foreground/60 text-[10px] pl-1">* 由于网络问题，可能测试结果不准确</p>
                                                 </div>
                                             )}
                                             {!testResult.success && testResult.textError && (
