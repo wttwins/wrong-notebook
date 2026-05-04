@@ -18,6 +18,8 @@ export class OpenAIProvider implements AIService {
     private openai: OpenAI;
     private model: string;
     private baseURL: string;
+    private apiKey: string;
+    private isLongCat: boolean;
 
     constructor(config?: AIConfig) {
         const apiKey = config?.apiKey;
@@ -37,6 +39,8 @@ export class OpenAIProvider implements AIService {
 
         this.model = config?.model || 'gpt-4o'; // Fallback for safety
         this.baseURL = baseURL || 'https://api.openai.com/v1';
+        this.apiKey = apiKey;
+        this.isLongCat = this.baseURL.includes('longcat.chat');
 
         logger.info({
             provider: 'OpenAI',
@@ -44,6 +48,27 @@ export class OpenAIProvider implements AIService {
             baseURL: this.baseURL,
             apiKeyPrefix: apiKey.substring(0, 8) + '...'
         }, 'AI Provider initialized');
+    }
+
+    private adaptMessagesForLongCat(messages: Array<{ role: string; content: any }>): Array<{ role: string; content: any }> {
+        return messages.map(msg => {
+            if (typeof msg.content === 'string') {
+                return { ...msg, content: [{ type: 'text', text: msg.content }] };
+            }
+            if (Array.isArray(msg.content)) {
+                const adapted = msg.content.map((part: any) => {
+                    if (part.type === 'image_url') {
+                        return {
+                            type: 'input_image',
+                            input_image: { data: [part.image_url.url], type: 'url' }
+                        };
+                    }
+                    return part;
+                });
+                return { ...msg, content: adapted };
+            }
+            return msg;
+        });
     }
 
     private extractTag(text: string, tagName: string): string | null {
@@ -193,13 +218,12 @@ export class OpenAIProvider implements AIService {
 
             logger.box('📤 API Request (发送给 AI 的原始请求)', JSON.stringify(requestParamsForLog, null, 2));
 
-            const response = await this.openai.chat.completions.create({
-                model: this.model,
-                messages: [
-                    {
-                        role: "system",
-                        content: systemPrompt
-                    },
+            let response: any;
+
+            if (this.isLongCat) {
+                // LongCat 使用不同的多模态格式，绕过 SDK 直接请求
+                const messages = this.adaptMessagesForLongCat([
+                    { role: "system", content: systemPrompt },
                     {
                         role: "user",
                         content: [
@@ -211,10 +235,52 @@ export class OpenAIProvider implements AIService {
                             },
                         ],
                     },
-                ],
-                // response_format: { type: "json_object" }, // Removing to improve compatibility with 3rd party providers
-                max_tokens: 8192,
-            });
+                ]);
+
+                const res = await fetch(`${this.baseURL}/chat/completions`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${this.apiKey}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        model: this.model,
+                        messages,
+                        max_tokens: 8192,
+                    }),
+                });
+
+                if (!res.ok) {
+                    const errBody = await res.text();
+                    logger.error({ status: res.status, body: errBody }, 'LongCat API error');
+                    throw new Error(`${res.status} status code (${errBody})`);
+                }
+
+                response = await res.json();
+            } else {
+                response = await this.openai.chat.completions.create({
+                    model: this.model,
+                    messages: [
+                        {
+                            role: "system",
+                            content: systemPrompt
+                        },
+                        {
+                            role: "user",
+                            content: [
+                                {
+                                    type: "image_url",
+                                    image_url: {
+                                        url: `data:${mimeType};base64,${imageBase64}`,
+                                    },
+                                },
+                            ],
+                        },
+                    ],
+                    // response_format: { type: "json_object" }, // Removing to improve compatibility with 3rd party providers
+                    max_tokens: 8192,
+                });
+            }
 
             logger.box('📦 Full API Response', JSON.stringify(response, null, 2));
 
