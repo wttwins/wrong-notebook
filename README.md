@@ -210,6 +210,8 @@ npm run dev
 | Base URL | 默认 `https://api.openai.com/v1` |
 | 模型 | `gpt-4o`（推荐）、`gpt-4-turbo`、`o3`、`o4-mini` 等 |
 
+> **兼容模式**：OpenAI 提供商兼容所有支持 OpenAI API 格式的第三方服务。只需将 Base URL 改为对应服务地址，即可使用硅基流动、智谱 GLM、月之暗面 Kimi、通义千问 DashScope 等平台的模型。模型名称需填写对应平台的完整模型 ID。
+
 #### Azure OpenAI
 
 | 参数 | 获取方式 |
