@@ -15,20 +15,6 @@ function extractModelName(modelId: string): string {
     return modelId.replace(/^models\//, '');
 }
 
-// 判断是否为支持视觉/图片输入的模型
-function isVisionModel(modelId: string): boolean {
-    const id = modelId.toLowerCase();
-    return (
-        id.includes('gemini') || // Gemini 全系列支持视觉
-        id.includes('vision') ||
-        id.includes('gpt-4o') ||
-        id.includes('gpt-4-turbo') ||
-        id.includes('claude-3') ||
-        id.includes('claude-4') ||
-        id.includes('glm-4v')
-    );
-}
-
 async function fetchGeminiModels(apiKey: string, baseUrl: string): Promise<ModelInfo[]> {
     const url = `${baseUrl}/v1beta/models?key=${apiKey}`;
 
@@ -43,7 +29,7 @@ async function fetchGeminiModels(apiKey: string, baseUrl: string): Promise<Model
     }
 
     const data = await response.json();
-    const models = (data.models || [])
+    return (data.models || [])
         .map((m: any) => {
             const id = extractModelName(m.name);
             return {
@@ -51,10 +37,7 @@ async function fetchGeminiModels(apiKey: string, baseUrl: string): Promise<Model
                 name: id,
                 owned_by: 'Google',
             };
-        })
-        .filter((m: ModelInfo) => isVisionModel(m.id));
-
-    return models;
+        });
 }
 
 async function fetchOpenAIModels(apiKey: string, baseUrl: string): Promise<ModelInfo[]> {
@@ -75,7 +58,6 @@ async function fetchOpenAIModels(apiKey: string, baseUrl: string): Promise<Model
     const data = await response.json();
 
     return (data.data || [])
-        .filter((model: any) => isVisionModel(model.id))
         .map((model: any) => ({
             id: model.id,
             name: model.id,
