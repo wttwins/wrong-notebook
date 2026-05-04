@@ -175,6 +175,46 @@ npm run dev
 
 > **注意**：网页配置会保存到 `config/app-config.json` 文件中，该文件的优先级高于 `.env` 环境变量。
 
+### 支持的 AI 服务商及配置样例
+
+除了原生支持的 Google Gemini、OpenAI、Azure OpenAI 外，项目还通过 **OpenAI 兼容接口** 支持以下第三方 AI 服务商：
+
+#### 硅基流动 SiliconFlow（OpenAI 兼容）
+
+> 硅基流动提供 100+ 高性能大模型，使用 OpenAI 兼容接口接入。
+
+| 参数 | 值 |
+| :--- | :--- |
+| 提供商 | `openai` |
+| API Key | 从 [硅基流动](https://cloud.siliconflow.cn) 获取 |
+| Base URL | `https://api.siliconflow.cn/v1` |
+| 模型 | 从模型广场复制完整名称，如 `deepseek-ai/DeepSeek-V3`、`Pro/zai-org/GLM-4.7`、`Qwen/Qwen3-8B` 等 |
+
+**常用模型推荐：**
+- 通用对话：`deepseek-ai/DeepSeek-V3`、`Qwen/Qwen3-8B`
+- 推理模型：`Pro/deepseek-ai/DeepSeek-R1`（支持思维链）
+- 多模态：`Qwen/Qwen2.5-VL-7B-Instruct`
+
+#### 其他兼容 OpenAI 的第三方服务
+
+任何提供 OpenAI 兼容接口的 AI 服务均可通过以下方式接入：
+
+| 参数 | 值 |
+| :--- | :--- |
+| 提供商 | `openai` |
+| API Key | 对应平台的 API Key |
+| Base URL | 对应平台的 API 地址（以 `/v1` 结尾） |
+| 模型 | 对应平台的模型名称 |
+
+**已验证兼容的服务：**
+- 硅基流动 SiliconFlow
+- 智谱 GLM（`https://open.bigmodel.cn/api/paas/v4`）
+- 月之暗面 Kimi（`https://api.moonshot.cn/v1`）
+- 零一万物 Yi（`https://api.lingyiwanwu.com/v1`）
+- 百川智能（`https://api.baichuan-ai.com/v1`）
+- 讯飞星火（`https://spark-api-open.xf-yun.com/v1`）
+- 通义千问 DashScope（`https://dashscope.aliyuncs.com/compatible-mode/v1`）
+
 ## 🛠️ 实用脚本
 
 在 `scripts/` 目录下提供了一些实用脚本，用于维护和调试：
