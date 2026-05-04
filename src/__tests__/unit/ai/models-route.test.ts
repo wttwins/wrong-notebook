@@ -82,7 +82,7 @@ describe('GET /api/ai/models - Gemini provider', () => {
         );
     });
 
-    it('应该过滤掉非视觉模型（如 embedding 和 tts 模型）', async () => {
+    it('应返回所有模型（不区分视觉/非视觉）', async () => {
         mockFetch.mockResolvedValueOnce({
             ok: true,
             json: async () => ({
@@ -99,10 +99,12 @@ describe('GET /api/ai/models - Gemini provider', () => {
         const res = await GET(req);
         const body = await res.json();
 
-        expect(body.models).toHaveLength(2);
+        expect(body.models).toHaveLength(4);
         expect(body.models.map((m: any) => m.id)).toEqual([
             'gemini-2.0-flash',
+            'text-embedding-004',
             'gemini-1.5-pro',
+            'text-to-speech-01',
         ]);
     });
 
@@ -182,9 +184,10 @@ describe('GET /api/ai/models - OpenAI provider', () => {
         const body = await res.json();
 
         expect(res.status).toBe(200);
-        expect(body.models).toHaveLength(2);
+        expect(body.models).toHaveLength(3);
         expect(body.models[0].id).toBe('gpt-4o');
         expect(body.models[1].id).toBe('gpt-4-turbo');
+        expect(body.models[2].id).toBe('text-embedding-3-small');
     });
 
     it('OpenAI API 返回错误时应返回 200 和空模型列表', async () => {
