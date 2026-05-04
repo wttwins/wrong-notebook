@@ -32,8 +32,6 @@ import { ModelSelector } from "@/components/ui/model-selector";
 import { PromptSettings } from "@/components/settings/prompt-settings";
 
 import { MessageSquareText, Info, ExternalLink, Github, ScrollText } from "lucide-react";
-import packageJson from "../../package.json";
-
 const MAX_OPENAI_INSTANCES = 10;
 
 // 生成唯一 ID
@@ -64,6 +62,7 @@ export function SettingsDialog() {
     const [migratingTags, setMigratingTags] = useState(false);
     const [saving, setSaving] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [version, setVersion] = useState<string>("");
     const [showApiKey, setShowApiKey] = useState(false);
     const [config, setConfig] = useState<AppConfig>({ aiProvider: 'gemini' });
     // OpenAI 多实例状态
@@ -101,6 +100,11 @@ export function SettingsDialog() {
             fetchSettings();
             fetchProfile();
         }
+        // 获取版本号
+        fetch("/api/version")
+            .then((res) => res.json())
+            .then((data) => setVersion(data.version))
+            .catch(() => {});
     }, [open]);
 
     const fetchSettings = async () => {
@@ -1216,7 +1220,7 @@ export function SettingsDialog() {
 
                             <div className="flex items-center space-x-2 text-sm text-muted-foreground border px-4 py-2 rounded-full bg-background">
                                 <Info className="h-4 w-4" />
-                                <span>{t.settings?.about?.version || "Version"}: v{packageJson.version}</span>
+                                <span>{t.settings?.about?.version || "Version"}: v{version || "unknown"}</span>
                             </div>
 
                             <div className="flex flex-col sm:flex-row flex-wrap justify-center gap-4 w-full sm:w-auto px-4 sm:px-0">
