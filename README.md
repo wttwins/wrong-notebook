@@ -182,13 +182,43 @@ npm run dev
 本项目支持动态配置 AI 模型，无需重启服务器。
 
 1.  **进入设置**：点击首页右上角的设置图标。
-2.  **选择提供商**：支持 Google Gemini, OpenAI (或兼容 API) 和 **Azure OpenAI**。
+2.  **选择提供商**：支持 Google Gemini、OpenAI 和 **Azure OpenAI**。
 3.  **填写参数**：
-    *   **通用参数**: API Key, Base URL (或 Endpoint), Model Name (或 Deployment Name)。
-    *   **Azure 特有**: Deployment Name (部署名称), API Version (API 版本)。
+    *   **通用参数**: API Key、Base URL（或 Endpoint）、Model Name（或 Deployment Name）。
+    *   **Azure 特有**: Deployment Name（部署名称）、API Version（API 版本）。
 4.  **保存生效**：点击保存后即刻生效。
 
 > **注意**：网页配置会保存到 `config/app-config.json` 文件中，该文件的优先级高于 `.env` 环境变量。
+
+### 配置样例
+
+选择提供商后，填写对应参数即可。各服务商获取方式如下：
+
+#### Google Gemini
+
+| 参数 | 获取方式 |
+| :--- | :--- |
+| API Key | [Google AI Studio](https://aistudio.google.com/apikey) → 创建 API Key |
+| Base URL | 默认 `https://generativelanguage.googleapis.com`，通常无需修改 |
+| 模型 | `gemini-2.5-flash`（推荐）、`gemini-2.5-pro`、`gemini-3.0-flash` 等 |
+
+#### OpenAI
+
+| 参数 | 获取方式 |
+| :--- | :--- |
+| API Key | [OpenAI Platform](https://platform.openai.com/api-keys) → Create new secret key |
+| Base URL | 默认 `https://api.openai.com/v1` |
+| 模型 | `gpt-4o`（推荐）、`gpt-4-turbo`、`o3`、`o4-mini` 等 |
+
+#### Azure OpenAI
+
+| 参数 | 获取方式 |
+| :--- | :--- |
+| API Key | Azure 门户 → 你的 OpenAI 资源 → 密钥和终结点 |
+| Endpoint | Azure 门户 → 你的 OpenAI 资源 → 终结点，如 `https://xxx.openai.azure.com` |
+| 部署名称 | Azure 中配置的模型部署名称，如 `gpt-4o` |
+| API 版本 | 默认 `2024-02-15-preview` |
+| 模型 | 显示用的模型名称，如 `gpt-4o` |
 
 ## 🛠️ 实用脚本
 
