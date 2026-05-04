@@ -126,18 +126,33 @@ cp .env.example .env
 
 | 环境变量 | 描述 | 默认值 | 说明 |
 | :--- | :--- | :--- | :--- |
-| `AI_PROVIDER` | AI 提供商 | `gemini` | 可选 `gemini`, `openai` 或 `azure` |
-| `GOOGLE_API_KEY` | Gemini API Key | 无 | 使用 Gemini 时必填 |
-| `GEMINI_BASE_URL` | Gemini API 地址 | 无 | 可选，用于自定义 API 地址 |
-| `GEMINI_MODEL` | Gemini 模型 | `gemini-2.5-flash` | 可选，如 `gemini-3.0-flash` |
-| `OPENAI_API_KEY` | OpenAI API Key | 无 | 使用 OpenAI 时必填 |
-| `OPENAI_BASE_URL` | OpenAI API 地址 | 无 | 可选，用于兼容的 API 服务 |
-| `OPENAI_MODEL` | OpenAI 模型 | `gpt-4o` | 可选，如 `gpt-4o` |
-| `AZURE_OPENAI_API_KEY` | Azure API Key | 无 | 使用 Azure OpenAI 时必填 |
+| `AI_PROVIDER` | AI 提供商 | `gemini` | 可选 `gemini`、`openai` 或 `azure` |
+
+**Gemini 配置**
+
+| 环境变量 | 描述 | 默认值 | 说明 |
+| :--- | :--- | :--- | :--- |
+| `GOOGLE_API_KEY` | Gemini API Key | 无 | 使用 Gemini 时必填，从 [Google AI Studio](https://aistudio.google.com/apikey) 获取 |
+| `GEMINI_BASE_URL` | Gemini API 地址 | 无 | 可选，默认 `https://generativelanguage.googleapis.com`，通常无需修改 |
+| `GEMINI_MODEL` | Gemini 模型 | `gemini-2.5-flash` | 可选，如 `gemini-2.5-pro`、`gemini-3.0-flash` 等 |
+
+**OpenAI 配置**
+
+| 环境变量 | 描述 | 默认值 | 说明 |
+| :--- | :--- | :--- | :--- |
+| `OPENAI_API_KEY` | OpenAI API Key | 无 | 使用 OpenAI 时必填，从 [OpenAI Platform](https://platform.openai.com/api-keys) 获取 |
+| `OPENAI_BASE_URL` | OpenAI API 地址 | 无 | 可选，默认 `https://api.openai.com/v1`；使用第三方兼容服务时填写对应地址 |
+| `OPENAI_MODEL` | OpenAI 模型 | `gpt-4o` | 可选，如 `gpt-4-turbo`、`o3`、`o4-mini` 等 |
+
+**Azure OpenAI 配置**
+
+| 环境变量 | 描述 | 默认值 | 说明 |
+| :--- | :--- | :--- | :--- |
+| `AZURE_OPENAI_API_KEY` | Azure API Key | 无 | 使用 Azure OpenAI 时必填，从 Azure 门户获取 |
 | `AZURE_OPENAI_ENDPOINT` | Azure Endpoint | 无 | Azure 资源端点，如 `https://xxx.openai.azure.com` |
-| `AZURE_OPENAI_DEPLOYMENT` | 部署名称 | 无 | Azure 模型部署名称 |
+| `AZURE_OPENAI_DEPLOYMENT` | 部署名称 | 无 | Azure 中配置的部署名称，如 `gpt-4o` |
 | `AZURE_OPENAI_API_VERSION` | API 版本 | `2024-02-15-preview` | 可选，Azure API 版本 |
-| `AZURE_OPENAI_MODEL` | Azure 模型 | `gpt-4o` | 可选，显示的模名称 |
+| `AZURE_OPENAI_MODEL` | Azure 模型 | `gpt-4o` | 可选，显示用的模型名称 |
 
 #### 5. 初始化数据库
 
@@ -174,46 +189,6 @@ npm run dev
 4.  **保存生效**：点击保存后即刻生效。
 
 > **注意**：网页配置会保存到 `config/app-config.json` 文件中，该文件的优先级高于 `.env` 环境变量。
-
-### 支持的 AI 服务商及配置样例
-
-除了原生支持的 Google Gemini、OpenAI、Azure OpenAI 外，项目还通过 **OpenAI 兼容接口** 支持以下第三方 AI 服务商：
-
-#### 硅基流动 SiliconFlow（OpenAI 兼容）
-
-> 硅基流动提供 100+ 高性能大模型，使用 OpenAI 兼容接口接入。
-
-| 参数 | 值 |
-| :--- | :--- |
-| 提供商 | `openai` |
-| API Key | 从 [硅基流动](https://cloud.siliconflow.cn) 获取 |
-| Base URL | `https://api.siliconflow.cn/v1` |
-| 模型 | 从模型广场复制完整名称，如 `deepseek-ai/DeepSeek-V3`、`Pro/zai-org/GLM-4.7`、`Qwen/Qwen3-8B` 等 |
-
-**常用模型推荐：**
-- 通用对话：`deepseek-ai/DeepSeek-V3`、`Qwen/Qwen3-8B`
-- 推理模型：`Pro/deepseek-ai/DeepSeek-R1`（支持思维链）
-- 多模态：`Qwen/Qwen2.5-VL-7B-Instruct`
-
-#### 其他兼容 OpenAI 的第三方服务
-
-任何提供 OpenAI 兼容接口的 AI 服务均可通过以下方式接入：
-
-| 参数 | 值 |
-| :--- | :--- |
-| 提供商 | `openai` |
-| API Key | 对应平台的 API Key |
-| Base URL | 对应平台的 API 地址（以 `/v1` 结尾） |
-| 模型 | 对应平台的模型名称 |
-
-**已验证兼容的服务：**
-- 硅基流动 SiliconFlow
-- 智谱 GLM（`https://open.bigmodel.cn/api/paas/v4`）
-- 月之暗面 Kimi（`https://api.moonshot.cn/v1`）
-- 零一万物 Yi（`https://api.lingyiwanwu.com/v1`）
-- 百川智能（`https://api.baichuan-ai.com/v1`）
-- 讯飞星火（`https://spark-api-open.xf-yun.com/v1`）
-- 通义千问 DashScope（`https://dashscope.aliyuncs.com/compatible-mode/v1`）
 
 ## 🛠️ 实用脚本
 
