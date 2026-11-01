@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { apiClient } from "@/lib/api-client";
-import { Loader2, Users, BookOpen, PenTool, Layers, TrendingUp, CheckCircle, Clock, AlertCircle, ChevronDown, ChevronUp, Eye, BarChart3, ArrowLeft } from "lucide-react";
+import { Loader2, Users, BookOpen, PenTool, Layers, TrendingUp, CheckCircle, Clock, AlertCircle, ChevronDown, ChevronUp, Eye, BarChart3, ArrowLeft, Gift } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -371,7 +371,7 @@ export default function AdminPage() {
     return (
         <div className="max-w-7xl mx-auto p-4 sm:p-6 space-y-6">
             {/* Header */}
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 flex-wrap">
                 <Button variant="ghost" size="sm" onClick={() => router.push("/")}>
                     <ArrowLeft className="h-4 w-4 md:h-6 md:w-6 mr-1" />
                     {t.common?.back || "返回"}
@@ -381,6 +381,12 @@ export default function AdminPage() {
                     <p className="text-sm text-muted-foreground">
                         {t.admin?.dashboard?.subtitle || "查看全站用户和错题统计"}
                     </p>
+                </div>
+                <div className="ml-auto">
+                    <Button variant="outline" className="min-h-11" onClick={() => router.push("/admin/lottery")}>
+                        <Gift className="h-4 w-4 mr-2" />
+                        {t.lottery?.admin?.title || "抽奖设置"}
+                    </Button>
                 </div>
             </div>
 

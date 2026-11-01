@@ -21,6 +21,11 @@ export interface OpenAIInstance {
 export interface AppConfig {
     aiProvider: 'gemini' | 'openai' | 'azure';
     allowRegistration?: boolean;
+    // 抽奖功能配置（独立于错题，不与积分挂钩）
+    lottery?: {
+        enabled?: boolean;       // 总开关，默认 true
+        drawsPerDay?: number;    // 每人每天可抽次数；0 = 不限
+    };
     openai?: {
         instances?: OpenAIInstance[];
         activeInstanceId?: string;
@@ -183,6 +188,8 @@ export function updateAppConfig(newConfig: Partial<AppConfig>) {
         azure: { ...currentConfig.azure, ...newConfig.azure },
         prompts: { ...currentConfig.prompts, ...newConfig.prompts },
         timeouts: { ...currentConfig.timeouts, ...newConfig.timeouts },
+        // 抽奖配置需要逐字段合并，否则只传 drawsPerDay 会把 enabled 冲掉
+        lottery: { ...currentConfig.lottery, ...newConfig.lottery },
     };
 
     try {
