@@ -9,6 +9,10 @@ npm-debug.log
 .next
 dist
 
+# Private Docker data and persisted deployment secrets.
+data
+**/.nextauth_secret
+
 # 版本控制
 .git
 .gitignore
