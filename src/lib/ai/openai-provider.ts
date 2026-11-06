@@ -268,7 +268,7 @@ export class OpenAIProvider implements AIService {
                         ],
                     },
                 ],
-                max_tokens: 8192,
+                max_tokens: 32768, ...({ thinking: { type: "disabled" } } as any),
             };
 
             logger.box('📤 API Request (发送给 AI 的原始请求)', JSON.stringify(requestParamsForLog, null, 2));
@@ -301,7 +301,7 @@ export class OpenAIProvider implements AIService {
                     body: JSON.stringify({
                         model: this.model,
                         messages,
-                        max_tokens: 8192,
+                        max_tokens: 32768, ...({ thinking: { type: "disabled" } } as any),
                     }),
                 });
 
