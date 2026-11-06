@@ -55,12 +55,15 @@
 
 ```bash
 docker run -d --name wrong-notebook \
-  -e NEXTAUTH_SECRET="your_secret_key" \
   -p 3000:3000 \
   -v $(pwd)/data:/app/data \
   -v $(pwd)/config:/app/config \
   ghcr.io/wttwins/wrong-notebook
 ```
+
+未设置 `NEXTAUTH_SECRET` 时，Docker 容器首次启动会自动生成强随机认证密钥，保存到挂载的数据目录 `data/.nextauth_secret`，文件权限为 `0600`；重启、重建容器时复用，密钥不会出现在日志中。请保留整个 `data` 目录，升级时不要删除该文件。已有密钥文件损坏或无法安全读写时，容器会中止启动，不会静默更换密钥。
+
+也可以显式提供自己的 `NEXTAUTH_SECRET`（用 `openssl rand -base64 32` 生成）：Docker 命令通过 `-e NEXTAUTH_SECRET` 传入，Compose 可在部署目录的 `.env` 文件中设置。显式配置优先于自动生成的文件；主动更换密钥会使已有登录会话失效。不要使用示例占位字符串作为生产密钥。本地源码生产部署仍需显式配置此环境变量。
 
 **选项 B：使用 Docker Compose (推荐)**
 
@@ -115,7 +118,7 @@ cp .env.example .env
 | 环境变量 | 描述 | 默认值 | 说明 |
 | :--- | :--- | :--- | :--- |
 | `DATABASE_URL` | 数据库连接地址 | `file:./dev.db` | SQLite 数据库路径 |
-| `NEXTAUTH_SECRET` | Auth 密钥 | 无 | 用于加密 Session，生产环境建议设置,可以使用 openssl rand -base64 32 生成一个随机字符串作为密钥 |
+| `NEXTAUTH_SECRET` | Auth 密钥 | 无 | 用于加密 Session。可用 `openssl rand -base64 32` 生成；Docker 未设置时会自动生成强随机密钥，并持久化到挂载目录的 `.nextauth_secret` |
 | `NEXTAUTH_URL` | 访问地址 | `http://your-domain-name:3000` | 部署后的访问地址 |
 | `AUTH_TRUST_HOST` | 信任主机头 | `true` | 设置为 `true` 时自动推断 URL，适合 Docker/PaaS |
 | `LOG_LEVEL` | 日志级别 | `debug` (开发) / `info` (生产) | 可选值：`trace`, `debug`, `info`, `warn`, `error`, `fatal` |

@@ -73,6 +73,9 @@ COPY --from=builder /app/public ./public
 
 # Automatically leverage output traces to reduce image size
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+# Standalone tracing can omit the UMD entry required by CommonJS runtime scripts.
+# Copy the complete package afterwards to retain both import and require entries.
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/bcryptjs ./node_modules/bcryptjs
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
 # Copy Prisma schema and migrations for runtime usage if needed (e.g. for migrations)
@@ -84,6 +87,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/config ./config
 # Copy pre-compiled runtime scripts
 COPY --from=builder --chown=nextjs:nodejs /app/dist-scripts ./dist-scripts
 COPY --from=builder --chown=nextjs:nodejs /app/scripts/seed-admin.js ./dist-scripts/scripts/seed-admin.js
+COPY --from=builder --chown=nextjs:nodejs /app/scripts/ensure-auth-secret.js ./dist-scripts/scripts/ensure-auth-secret.js
 
 # Create data directory for SQLite persistence
 RUN mkdir -p /app/data && chown -R nextjs:nodejs /app/data

@@ -69,7 +69,8 @@ services:
       - HTTPS_ENABLED=true
       - CERT_DOMAIN=YOUR_IP_OR_DOMAIN  # 替换为你的 IP 或域名
       - NEXTAUTH_URL=https://YOUR_IP_OR_DOMAIN
-      - NEXTAUTH_SECRET=your_secret_key
+      # 留空时自动生成并持久化到 ./data/.nextauth_secret；显式设置则优先生效。
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-}
       - AUTH_TRUST_HOST=true
     volumes:
       - ./certs:/app/certs  # 证书持久化
@@ -100,6 +101,7 @@ docker logs wrong-notebook | grep -i cert
 | `HTTPS_ENABLED` | 是 | - | 设为 `true` 启用 HTTPS |
 | `CERT_DOMAIN` | 否 | `localhost` | 证书的 CN（你的 IP 或域名） |
 | `NEXTAUTH_URL` | 是 | - | 完整访问地址 |
+| `NEXTAUTH_SECRET` | 否 | 自动生成 | 留空时持久化到 `./data/.nextauth_secret`；显式设置会覆盖它 |
 | `AUTH_TRUST_HOST` | 是 | - | 设为 `true` |
 | `HTTPS_PORT` | 否 | `443` | HTTPS 监听端口 |
 

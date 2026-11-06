@@ -10,7 +10,9 @@ services:
     environment:
       # NEXTAUTH_URL 根据实际情况设置你的信息
       #- NEXTAUTH_URL=http://your_domain_name:3000
-      - NEXTAUTH_SECRET=your_secret_key
+      # Empty value lets the container create and persist a strong secret in ./data/.nextauth_secret.
+      # Set NEXTAUTH_SECRET in the deployment environment to supply your own value.
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-}
     volumes:
       # Persist the SQLite database
       - ./data:/app/data
