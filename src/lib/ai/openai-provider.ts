@@ -10,16 +10,10 @@ import { normalizeMistakeStatusForSave } from '../mistake-status';
 const logger = createLogger('ai:openai');
 
 /**
- * 「默认开启思考模式」的 OpenAI 兼容端点（可选配置）。
- *
- * 这类端点的思维链 token 会计入 max_tokens：当推理长度超出上限时
- * finish_reason 返回 "length" 且 content 为空字符串，导致解析失败
- * （详见 analyzeForGeogebra 的调用方报错 AI_UNKNOWN_ERROR / 502）。
- * 因此对它们默认关闭思考模式；用户可在设置里用 disableThinking 显式覆盖。
- *
- * 端点清单不再写死在代码里，而是通过环境变量 THINKING_CAPABLE_HOSTS 提供
- * （英文逗号分隔的主机名片段，例如 "api.example.com,api.example.org"）。
- * 未配置时为空列表，即不做自动判定 —— 此时请通过 disableThinking 显式控制。
+ * 思考模式默认策略：
+ * - 显式 true/false 永远优先，与端点是否被识别无关；
+ * - 普通三操作和 LongCat 图片分支保留旧默认 disabled；
+ * - GeoGebra 未显式选择时仅对已识别端点默认 disabled，未知端点不发字段。
  */
 const THINKING_CAPABLE_HOSTS = (process.env.THINKING_CAPABLE_HOSTS || '')
     .split(',')
@@ -44,6 +38,7 @@ export class OpenAIProvider implements AIService {
     private apiKey: string;
     private isLongCat: boolean;
     private disableThinking: boolean;
+    private explicitDisableThinking: boolean | undefined;
     private isThinkingCapable: boolean;
 
     constructor(config?: AIConfig) {
@@ -67,8 +62,9 @@ export class OpenAIProvider implements AIService {
         this.apiKey = apiKey;
         this.isLongCat = this.baseURL.includes('longcat.chat');
 
-        // 思考模式：显式配置优先，未配置时对已知思考型端点默认关闭
+        // 先保存用户显式选择，再保存解析后的实际默认值。
         this.isThinkingCapable = isThinkingCapableEndpoint(this.baseURL);
+        this.explicitDisableThinking = config?.disableThinking;
         this.disableThinking = config?.disableThinking ?? this.isThinkingCapable;
 
         logger.info({
@@ -88,21 +84,23 @@ export class OpenAIProvider implements AIService {
      * 但 SDK 会原样透传未知的顶层参数）。
      * 关闭思考可避免思维链吃满 max_tokens 导致 content 为空。
      */
-    private thinkingParam(): Record<string, unknown> {
-        if (!this.isThinkingCapable) return {};
-        // 用户显式关闭，或自动判定需要关闭
-        if (this.disableThinking) {
+    private thinkingParam(legacyDefaultDisabled = false): Record<string, unknown> {
+        if (this.explicitDisableThinking !== undefined) {
+            return { thinking: { type: this.explicitDisableThinking ? 'disabled' : 'enabled' } };
+        }
+        // 按操作保留 main 的默认行为，而不是用主机识别覆盖旧的 disabled。
+        if (legacyDefaultDisabled || this.disableThinking) {
             return { thinking: { type: 'disabled' } };
         }
-        return { thinking: { type: 'enabled' } };
+        return {};
     }
 
     /**
      * 合并请求参数。思考模式参数需要在运行时按配置注入，
      * 而 OpenAI SDK 的请求类型不允许未知顶层字段，故此处统一断言。
      */
-    private withThinking<T extends object>(params: T): T {
-        return { ...params, ...this.thinkingParam() } as T;
+    private withThinking<T extends object>(params: T, legacyDefaultDisabled = true): T {
+        return { ...params, ...this.thinkingParam(legacyDefaultDisabled) } as T;
     }
 
     private adaptMessagesForLongCat(messages: Array<{ role: string; content: any }>): Array<{ role: string; content: any }> {
@@ -268,7 +266,7 @@ export class OpenAIProvider implements AIService {
                         ],
                     },
                 ],
-                max_tokens: 32768, ...({ thinking: { type: "disabled" } } as any),
+                max_tokens: 32768,
             };
 
             logger.box('📤 API Request (发送给 AI 的原始请求)', JSON.stringify(requestParamsForLog, null, 2));
@@ -301,7 +299,8 @@ export class OpenAIProvider implements AIService {
                     body: JSON.stringify({
                         model: this.model,
                         messages,
-                        max_tokens: 32768, ...({ thinking: { type: "disabled" } } as any),
+                        ...this.thinkingParam(true),
+                        max_tokens: 32768,
                     }),
                 });
 
@@ -334,7 +333,7 @@ export class OpenAIProvider implements AIService {
                             },
                         ],
                         // response_format: { type: "json_object" }, // Removing to improve compatibility with 3rd party providers
-                        max_tokens: 8192,
+                        max_tokens: 32768,
                     }) as any
                 );
             }
@@ -396,7 +395,7 @@ export class OpenAIProvider implements AIService {
                         { role: "user", content: userPrompt },
                     ],
                     // response_format: { type: "json_object" }, // Removing to improve compatibility with 3rd party providers
-                    max_tokens: 8192,
+                    max_tokens: 32768,
                 }) as any
             );
 
@@ -457,7 +456,7 @@ export class OpenAIProvider implements AIService {
                     { role: "system", content: prompt.substring(0, 200) + "..." },
                     { role: "user", content: typeof userContent === 'string' ? userContent : "[包含图片的多模态消息]" }
                 ],
-                max_tokens: 8192
+                max_tokens: 32768
             };
             logger.debug({ requestParams }, 'Request parameters');
 
@@ -468,7 +467,7 @@ export class OpenAIProvider implements AIService {
                         { role: "system", content: prompt },
                         { role: "user", content: userContent }
                     ],
-                    max_tokens: 8192,
+                    max_tokens: 32768,
                 }) as any
             );
 
@@ -526,10 +525,11 @@ export class OpenAIProvider implements AIService {
                         { role: "system", content: prompt },
                         { role: "user", content: "请分析上述题目并生成 GeoGebra 演示命令。" }
                     ],
-                    // 该任务需要输出较大的 JSON（多条 GeoGebra 命令），
-                    // 原先的 4096 在思考模式下会被思维链吃满并返回空内容。
+                    // 该任务需要输出较大的 JSON（多条 GeoGebra 命令）；
+                    // PR 的 8192 预算保留，但不得扩散到其他任务。
+                    // 保留旧未知端点无 thinking 字段；显式选择仍优先于自动识别。
                     max_tokens: 8192,
-                }) as any
+                }, false) as any
             );
 
             const text = response.choices[0]?.message?.content || '';

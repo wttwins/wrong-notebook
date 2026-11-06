@@ -29,6 +29,7 @@ import { UserManagement } from "@/components/admin/user-management";
 import { apiClient } from "@/lib/api-client";
 import { frontendLogger } from "@/lib/frontend-logger";
 import { AppConfig, UserProfile, UpdateUserProfileRequest, OpenAIInstance } from "@/types/api";
+import { buildAITestRequest } from "@/lib/ai/client-request";
 import { ModelSelector } from "@/components/ui/model-selector";
 import { PromptSettings } from "@/components/settings/prompt-settings";
 
@@ -492,14 +493,13 @@ export function SettingsDialog() {
     // 获取当前选中的 OpenAI 实例
     const getSelectedInstance = (): OpenAIInstance | undefined => {
         const instances = config.openai?.instances || [];
+        // 本地选中的实例优先；同步 effect 只负责首次回填，不能覆盖用户切换。
         const activeId = selectedInstanceId || config.openai?.activeInstanceId;
         return instances.find(i => i.id === activeId);
     };
 
-    // 与后端 isThinkingCapableEndpoint 的判定保持一致：后端从环境变量
-    // THINKING_CAPABLE_HOSTS 读取端点清单（前端无法读取该变量），
-    // 因此这里不猜测，只在 disableThinking 未显式设置时返回 undefined，
-    // 由 UI 显示「跟随服务端配置」。
+    // 不在前端猜测端点能力；保留显式配置（尤其是 false）。
+    // 旧实例缺省时，UI 与普通 SDK 一样默认关闭思考，保存仍保留 undefined。
     const isThinkingDisabled = (instance?: OpenAIInstance): boolean | undefined =>
         instance?.disableThinking;
 
@@ -530,8 +530,8 @@ export function SettingsDialog() {
             apiKey: '',
             baseUrl: 'https://api.openai.com/v1',
             model: 'gpt-4o',
-            // OpenAI 官方端点无思考模式；保留 undefined 由后端按端点自动判定
-            disableThinking: undefined,
+            // 新实例与普通 SDK 默认一致：关闭思考；用户仍可显式开启。
+            disableThinking: true,
         };
 
         setConfig(prev => ({
@@ -574,6 +574,8 @@ export function SettingsDialog() {
 
     // 同步 selectedInstanceId 与 config
     useEffect(() => {
+        // 仅首次回填本地选择，后续切换只更新 config.activeInstanceId，
+        // 避免 effect 反向覆盖用户选中的实例。
         if (config.openai?.activeInstanceId && !selectedInstanceId) {
             setSelectedInstanceId(config.openai.activeInstanceId);
         }
@@ -604,10 +606,17 @@ export function SettingsDialog() {
                 }
                 requestBody = {
                     provider: 'openai',
-                    apiKey: instance.apiKey,
-                    baseUrl: instance.baseUrl,
-                    model: instance.model,
-                    language: language
+                    ...buildAITestRequest({
+                        provider: 'openai',
+                        apiKey: instance.apiKey,
+                        baseUrl: instance.baseUrl,
+                        model: instance.model,
+                        language,
+                        instanceId: instance.id,
+                        useConfigured: false,
+                        disableThinking: instance.disableThinking,
+                        saved: instance,
+                    }),
                 };
             } else if (config.aiProvider === 'gemini') {
                 if (!config.gemini?.apiKey) {
@@ -617,10 +626,15 @@ export function SettingsDialog() {
                 }
                 requestBody = {
                     provider: 'gemini',
-                    apiKey: config.gemini.apiKey,
-                    baseUrl: config.gemini.baseUrl,
-                    model: config.gemini.model,
-                    language: language
+                    ...buildAITestRequest({
+                        provider: 'gemini',
+                        apiKey: config.gemini.apiKey,
+                        baseUrl: config.gemini.baseUrl,
+                        model: config.gemini.model,
+                        language,
+                        useConfigured: true,
+                        saved: config.gemini,
+                    }),
                 };
             } else if (config.aiProvider === 'azure') {
                 if (!config.azure?.apiKey || !config.azure?.endpoint || !config.azure?.deploymentName) {
@@ -630,12 +644,18 @@ export function SettingsDialog() {
                 }
                 requestBody = {
                     provider: 'azure',
-                    apiKey: config.azure.apiKey,
+                    ...buildAITestRequest({
+                        provider: 'azure',
+                        apiKey: config.azure.apiKey,
+                        baseUrl: undefined,
+                        model: config.azure.model,
+                        language,
+                        useConfigured: true,
+                        saved: config.azure,
+                    }),
                     endpoint: config.azure.endpoint,
                     deploymentName: config.azure.deploymentName,
                     apiVersion: config.azure.apiVersion,
-                    model: config.azure.model,
-                    language: language
                 };
             } else {
                 setTesting(false);
@@ -1001,6 +1021,7 @@ export function SettingsDialog() {
                                                 <div className="space-y-2">
                                                     <Label>{t.settings?.ai?.instanceName || "Instance Name"} <span className="text-destructive">*</span></Label>
                                                     <Input
+                                                        id="instance-name"
                                                         value={getSelectedInstance()?.name || ''}
                                                         onChange={(e) => updateOpenAIInstance('name', e.target.value)}
                                                         placeholder="e.g. 智谱 GLM-4V"
@@ -1011,6 +1032,7 @@ export function SettingsDialog() {
                                                     <Label>API Key <span className="text-destructive">*</span></Label>
                                                     <div className="relative">
                                                         <Input
+                                                            id="api-key"
                                                             type={showApiKey ? "text" : "password"}
                                                             value={getSelectedInstance()?.apiKey || ''}
                                                             onChange={(e) => updateOpenAIInstance('apiKey', e.target.value)}
@@ -1035,6 +1057,7 @@ export function SettingsDialog() {
                                                 <div className="space-y-2 pt-4 border-t">
                                                     <Label>Base URL <span className="text-destructive">*</span></Label>
                                                     <Input
+                                                        id="base-url"
                                                         value={getSelectedInstance()?.baseUrl || ''}
                                                         onChange={(e) => updateOpenAIInstance('baseUrl', e.target.value)}
                                                         placeholder="https://api.openai.com/v1"
@@ -1046,6 +1069,8 @@ export function SettingsDialog() {
                                                     apiKey={getSelectedInstance()?.apiKey}
                                                     baseUrl={getSelectedInstance()?.baseUrl}
                                                     currentModel={getSelectedInstance()?.model}
+                                                    instanceId={getSelectedInstance()?.id}
+                                                    useConfigured={false}
                                                     onModelChange={(model) => updateOpenAIInstance('model', model)}
                                                 />
                                                 <div className="pt-4 border-t">
@@ -1060,7 +1085,7 @@ export function SettingsDialog() {
                                                         </div>
                                                         <Switch
                                                             id="disable-thinking"
-                                                            checked={isThinkingDisabled(getSelectedInstance()) ?? false}
+                                                            checked={isThinkingDisabled(getSelectedInstance()) ?? true}
                                                             onCheckedChange={(checked) => updateOpenAIInstance('disableThinking', checked)}
                                                         />
                                                     </div>
@@ -1076,6 +1101,7 @@ export function SettingsDialog() {
                                             <Label>API Key</Label>
                                             <div className="relative">
                                                 <Input
+                                                    id="api-key"
                                                     type={showApiKey ? "text" : "password"}
                                                     value={config.gemini?.apiKey || ''}
                                                     onChange={(e) => updateConfig('gemini', 'apiKey', e.target.value)}
@@ -1100,6 +1126,7 @@ export function SettingsDialog() {
                                         <div className="space-y-2">
                                             <Label>Base URL (Optional)</Label>
                                             <Input
+                                                id="base-url"
                                                 value={config.gemini?.baseUrl || ''}
                                                 onChange={(e) => updateConfig('gemini', 'baseUrl', e.target.value)}
                                                 placeholder="https://generativelanguage.googleapis.com"
@@ -1110,6 +1137,7 @@ export function SettingsDialog() {
                                             apiKey={config.gemini?.apiKey}
                                             baseUrl={config.gemini?.baseUrl}
                                             currentModel={config.gemini?.model}
+                                            useConfigured={true}
                                             onModelChange={(model) => updateConfig('gemini', 'model', model)}
                                         />
                                     </div>

@@ -122,6 +122,12 @@ export interface OpenAIInstance {
     disableThinking?: boolean;
 }
 
+export interface RuntimeConfig {
+    timeouts: {
+        analyze: number; // 毫秒；可对已登录用户公开，不包含 AI 配置或密钥
+    };
+}
+
 export interface AppConfig {
     aiProvider: 'gemini' | 'openai' | 'azure';
     allowRegistration?: boolean;

@@ -5,7 +5,8 @@ import { getServerSession } from "next-auth";
 import { requireAdmin } from "@/lib/auth-utils";
 import { forbidden, unauthorized, badRequest, internalError } from "@/lib/api-errors";
 import { createLogger } from "@/lib/logger";
-import { savePrizeImageFromDataUrl, PrizeImageError } from "@/lib/prize-image";
+import { savePrizeImageFromDataUrl, deletePrizeImageIfUnreferenced, PrizeImageError } from "@/lib/prize-image";
+import { isPrizeStock, MAX_PRISMA_INT } from "@/lib/prize-form";
 
 const logger = createLogger('api:admin:prizes');
 
@@ -96,13 +97,9 @@ export async function POST(req: Request) {
             return badRequest(`权重需在 1 - ${MAX_WEIGHT} 之间`);
         }
 
-        let cleanStock: number | null = null;
-        if (stock !== null && stock !== undefined && stock !== '') {
-            const n = Math.floor(Number(stock));
-            if (!Number.isFinite(n) || n < 0) {
-                return badRequest('库存需为不小于 0 的整数，留空表示不限量');
-            }
-            cleanStock = n;
+        const cleanStock = stock === undefined ? null : stock;
+        if (!isPrizeStock(cleanStock)) {
+            return badRequest(`库存需为 0 - ${MAX_PRISMA_INT} 的整数，null 表示不限量`);
         }
 
         if (typeof imageDataUrl === 'string' && imageDataUrl.trim()) {
@@ -125,6 +122,13 @@ export async function POST(req: Request) {
         logger.info({ prizeId: created.id, name: created.name }, 'Prize created');
         return NextResponse.json({ prize: { id: created.id } }, { status: 201 });
     } catch (error) {
+        if (imagePath) {
+            try {
+                await deletePrizeImageIfUnreferenced(imagePath, prisma);
+            } catch (cleanupError) {
+                logger.warn({ error: cleanupError }, 'Could not clean up unreferenced new prize image');
+            }
+        }
         if (error instanceof PrizeImageError) {
             return badRequest(error.message);
         }

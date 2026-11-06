@@ -1,13 +1,13 @@
 import type { NextConfig } from "next";
 
 /**
- * 从 URL 提取主机名（含端口）。
+ * 从 URL 提取主机名（不含端口）。
  * 用于自动放行隧道/反向代理域名，避免每次换隧道地址都要改这里。
  */
 function hostnameOf(url?: string): string | undefined {
   if (!url) return undefined;
   try {
-    return new URL(url).host;
+    return new URL(url).hostname;
   } catch {
     return undefined;
   }

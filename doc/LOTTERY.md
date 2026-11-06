@@ -31,9 +31,9 @@
 | `description` | 说明文字（≤300 字） |
 | `imagePath` | 相对路径 `uploads/prizes/xxx.png`；为空则显示占位图标 |
 | `weight` | 相对权重（1–1000），越大越容易抽中 |
-| `stock` | 库存；`null` = 不限量，`0` = 已抽完 |
+| `stock` | 非负整数（≤2147483647）；`null` = 不限量，`0` = 已抽完 |
 | `enabled` | 停用后不进入抽奖池 |
-| `isBlank` | 「谢谢参与」占位项，`true` 时不出现在奖品墙 |
+| `isBlank` | 「谢谢参与」占位项，`true` 时不出现在奖品墙；已有任意抽奖记录后不可改变 |
 | `sortOrder` | 展示排序 |
 
 ### DrawRecord（抽奖记录）
@@ -59,7 +59,11 @@
 | `GET` | `/api/lottery/prizes` | 奖品墙（不含 `isBlank`，不暴露 `weight`） |
 | `POST` | `/api/lottery/draw` | 抽一次 |
 | `GET` | `/api/lottery/records?limit=20` | 我的中奖记录（不含「谢谢参与」） |
-| `GET` | `/api/lottery/prizes/[id]/image` | 奖品图片二进制 |
+| `GET` | `/api/lottery/prizes/[id]/image` | 当前奖品图片二进制，换图后同一 URL 会变化 |
+| `GET` | `/api/lottery/records/[id]/image` | 记录的图片快照；用户仅能查看自己的记录，管理员可查看全部 |
+
+历史图片接口只接收记录 ID，不接收文件路径。无会话返回 `401`；他人记录、记录不存在、无图片或文件不合法均返回 `404`，不泄露记录存在性。
+用户历史列表和抽奖结果弹窗均使用 `recordId` 图片 URL；奖品墙仍使用当前奖品 URL。
 
 `POST /api/lottery/draw` 的错误码：
 
@@ -74,12 +78,24 @@
 | 方法 | 路径 | 说明 |
 | :--- | :--- | :--- |
 | `GET` | `/api/admin/prizes` | 全部奖品（含占位项、概率、已抽中数） |
-| `POST` | `/api/admin/prizes` | 新建（可带 `imageDataUrl`） |
-| `PATCH` | `/api/admin/prizes/[id]` | 编辑（换图/删图/改库存权重等） |
+| `POST` | `/api/admin/prizes` | 新建（全量字段，可带 `imageDataUrl`）；库存同样校验非负整数及 Prisma Int 上限 |
+| `PATCH` | `/api/admin/prizes/[id]` | 差量编辑；修改库存必须带 `expectedStock` 原值；已有记录时改变 `isBlank` 返回 `409` |
 | `DELETE` | `/api/admin/prizes/[id]` | 删除；**有中奖记录时返回 409** |
 | `GET` | `/api/admin/lottery/config` | 读取规则 |
 | `PATCH` | `/api/admin/lottery/config` | 修改 `enabled` / `drawsPerDay` |
 | `GET` | `/api/admin/lottery/records` | 全部中奖记录（含用户邮箱） |
+
+编辑表单仅提交相对于打开表单时快照**实际改变**的字段，创建仍提交全量标量字段。
+例如打开时库存为 `1`，期间已被用户抽到 `0`，只改名称时 PATCH 不带库存，不会把库存恢复成 `1`。
+显式补库存时发送：
+
+```json
+{ "stock": 5, "expectedStock": 0 }
+```
+
+`stock` / `expectedStock` 均只能是 `null` 或 `0..2147483647` 的 JSON 整数，不能传字符串、负数、小数或超范围数。
+`expectedStock: null` 表示原库存不限量，不能省略。服务端在同一事务内读取原值、校验并做条件更新；不匹配返回 `409`，非法或缺少原值返回 `400`。
+遇到 `409` 应刷新奖品后重新编辑，不要用旧表单强制覆盖。新建不需要 `expectedStock`；省略库存默认为不限量。
 
 ---
 
@@ -174,6 +190,9 @@ if (updated.count === 0) { /* 被并发抽走，重抽 */ }
 不能「先查库存再扣」——并发下会超发。整个流程（复查次数 → 抽 → 扣库存 → 写记录）
 在 `prisma.$transaction` 内完成。
 
+管理端库存 PATCH 同样在事务内用 `{ id, stock: expectedStock }` 条件更新，包含 `null` 的比较。
+与抽奖竞争时旧库存的写入不会绕过 CAS。
+
 ### 5.4 图片不进数据库
 
 现有错题图是 base64 存 DB，但奖品图会出现在列表页，反复读大字段代价高。
@@ -185,9 +204,19 @@ if (updated.count === 0) { /* 被并发抽走，重抽 */ }
 - 解码后 ≤ 2MB
 - **校验文件头魔数**，不能只信 data URL 声明的类型
 - 文件名由服务端随机生成，不使用调用方提供的名字
-- 读取接口对 `path.basename` 做白名单正则，防目录穿越
+- 读取/清理校验完整路径 `uploads/prizes/<白名单文件名>.(png|jpg|jpeg|webp)`，不以 `basename` 修复非法路径
+- 读取只允许普通文件，拒绝符号链接；文件头魔数必须与扩展名/MIME 一致
+- 图片响应使用 `private, no-cache` 和 `nosniff`，当前奖品 ID URL 可变，不能标记 `immutable`
+- 换图、删图、删奖品后只清理无任何 `Prize` 或 `DrawRecord` 引用的旧文件；快照文件继续保留
+- 新建或编辑写库失败后，同样先检查引用，再清理已保存但未被引用的新文件；成功创建的图片不删
 
-### 5.5 不存「余额」概念
+### 5.5 已记录奖品的类型稳定
+
+不增加数据库快照列。现有用户中奖记录通过关联 `Prize.isBlank = false` 过滤，
+因此在编辑事务内禁止已有**任意抽奖记录**的奖品改变 `isBlank`（包括「谢谢参与」记录），返回 `409`。
+无记录时允许修改；已有记录时仍可同类型改名、换图、停用、按 CAS 改库存。
+
+### 5.6 不存「余额」概念
 
 抽奖次数不落库，每次由 `DrawRecord` 按当日计数推导：
 `剩余 = drawsPerDay - 今日已抽数`。天然幂等，不存在计数漂移。
@@ -221,48 +250,57 @@ if (updated.count === 0) { /* 被并发抽走，重抽 */ }
 
 内容：建 `Prize` / `DrawRecord` 两表 + 3 个索引 + 一条「谢谢参与」种子。
 
-**部署时注意**：`docker-entrypoint.sh` 在容器启动时执行
-`prisma migrate deploy`，失败只打日志不中断（`|| echo`）。
+升级前备份数据库及数据卷，通过 `prisma migrate deploy` 应用迁移并保留 `_prisma_migrations` 历史。
+容器启动会执行迁移，但部署后仍必须完成两项验证：
 
-因此部署后**必须验证一次**：
-
-```bash
-curl -s -o /dev/null -w "%{http_code}\n" http://<nas>:3000/api/lottery/status
-```
-
-| 返回 | 含义 |
-| :--- | :--- |
-| `401` | 表已建好、路由正常（未登录被拒）✅ |
-| `500` | 迁移没成功，`Prize`/`DrawRecord` 不存在 ❌ |
-
-若为 500，手动补建（只建表，不清数据）：
+1. 在已登录的浏览器/认证会话下请求 `GET /api/lottery/status`，确认 `200` 和正常 JSON（真正执行数据库查询）。
+2. 在部署目录检查迁移状态：
 
 ```bash
-# $APP_DIR 为部署目录（含 docker-compose.yml 的那一层）
-ssh <host> "cd \$APP_DIR && docker compose exec -T wrong-notebook \
-  node node_modules/prisma/build/index.js db execute \
-  --url file:/app/data/dev.db \
-  --file prisma/migrations/20261027020000_add_lottery/migration.sql"
+docker compose exec -T wrong-notebook \
+  node node_modules/prisma/build/index.js migrate status --schema prisma/schema.prisma
 ```
+
+未登录的 `401` 只证明鉴权分支正常，**没有访问抽奖表，不能证明迁移成功**。
+`500` 也可能来自其它服务错误，应检查应用/迁移日志、数据库位置及卷权限，不能仅凭状态码判定缺表。
+
+有待应用或失败的迁移时，先修复实际原因（权限、数据库路径、空间或迁移错误），
+必要时按 Prisma 的失败迁移恢复流程处理记录，再执行：
+
+```bash
+docker compose exec -T wrong-notebook \
+  node node_modules/prisma/build/index.js migrate deploy --schema prisma/schema.prisma
+docker compose exec -T wrong-notebook \
+  node node_modules/prisma/build/index.js migrate status --schema prisma/schema.prisma
+```
+
+然后重新验证已认证的 status `200`。不要用 `db execute` 手工建表绕过迁移记录来掩盖失败。
 
 ---
 
-## 八、已验证的行为
+## 八、定向回归验证
 
-本地生产构建 + 真浏览器验证，共 36 项检查全部通过：
+```bash
+npm test -- src/__tests__/unit/lottery src/__tests__/integration/lottery
+```
+
+真实数据库用例使用已生成的 **Prisma 5.22** Client，在 `mkdtemp` 的私有 scratch 内复制 schema/迁移，
+实际执行 `migrate deploy`，显式指定独立 SQLite URL；不读取仓库 `.env`，不接触生产数据库/图片。
+迁移子进程只继承白名单环境变量，结束后断开并清理 fixture。CI 未设 `TMPDIR` 时使用用户私有缓存目录，不写系统 `/tmp`。
+UI 用例明确使用 mocked HTTP；核心事务、管理更新、历史权限和迁移升级用例不是内存 ORM。
 
 | 类别 | 覆盖点 |
 | :--- | :--- |
-| 鉴权 | 5 个用户端/管理端接口未登录均 401；普通用户访问管理端 403 |
-| 权限 | 未登录取奖品图 401 |
-| 奖品 CRUD | 创建、编辑、删除；有中奖记录时删除返回 409 |
-| 图片安全 | 非图片内容（伪装成 png 的文本）被 400 拒绝 |
-| 加权随机 | 概率之和 = 100%；高权重奖品被抽中；售罄奖品不再进入池 |
-| 库存 | 抽中后 `stock` 1→0、`drawCount` +1；不限量保持 `null` |
-| 每日次数 | 第 N+1 次返回 429；关闭开关后返回 403 |
-| 记录 | 奖品名快照写入；用户记录过滤掉「谢谢参与」；管理端看得到全部 |
-| 图片服务 | 200 + `image/png` + `immutable` 缓存头 |
-| 界面 | `/lottery`、`/admin/lottery` 均正常渲染，无横向溢出 |
+| 表单 | 库存 1→0 期间仅改名不恢复库存；差量字段、null expectedStock、新建全量、冲突提示 |
+| 实际事务 | 两个 Prisma 引擎竞争同一 SQLite：同用户每日上限、跨用户末件只发一次；触发器拒绝记录时库存与次数回滚 |
+| 无写入条件 | 抽奖关闭、奖品停用/售罄；不限量与「谢谢参与」仍计入日限额 |
+| 管理库存/类型 | stock 与 expectedStock 的整数范围、缺少/过期原值、并发 CAS、已有记录类型不可变、无记录类型可变 |
+| 图片寿命 | DrawRecord/其它 Prize 引用保留；无引用旧文件清理；创建/编辑写库失败清理新文件，成功创建保留 |
+| 历史权限 | 无会话 401、本人/管理员 200、他人/不存在 404；快照换图/删图后仍可读 |
+| 图片安全/缓存 | 完整路径、MIME/魔数、符号链接拒绝、private no-cache；历史和结果 UI 使用 recordId |
+| 升级迁移 | 旧迁移→已有用户/错题/标签/复习/练习 fixture→抽奖迁移，数据和关系保留；索引/种子、status、再次 deploy 幂等 |
+
+生产构建、浏览器交互与部署验收应另外执行，不能用 mocked UI 测试替代。
 
 ---
 

@@ -13,9 +13,11 @@
  *      （否则可以把任意文件改名成 .png 存进来）
  *   4. 文件名由服务端生成，绝不使用调用方提供的名字
  */
-import fs from 'fs/promises';
+import fs, { type FileHandle } from 'fs/promises';
+import { constants } from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import type { Prisma } from '@prisma/client';
 
 const MAX_BYTES = 2 * 1024 * 1024; // 2MB
 const SUB_DIR = path.join('uploads', 'prizes');
@@ -85,21 +87,66 @@ export async function savePrizeImageFromDataUrl(dataUrl: string): Promise<string
     await fs.mkdir(dir, { recursive: true });
 
     const fileName = `${crypto.randomBytes(10).toString('hex')}.${ext}`;
-    await fs.writeFile(path.join(dir, fileName), buf);
+    await fs.writeFile(path.join(dir, fileName), buf, { flag: 'wx' });
 
     return path.posix.join('uploads', 'prizes', fileName);
 }
 
-/** 删除图片文件；路径不合法或文件不存在时静默忽略 */
-export async function deletePrizeImage(relPath?: string | null): Promise<void> {
-    if (!relPath) return;
+const MIME_BY_EXT: Record<string, string> = {
+    png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp',
+};
 
-    const baseName = path.basename(relPath);
-    if (!/^[A-Za-z0-9_-]+\.[A-Za-z0-9]+$/.test(baseName)) return;
+/** Validate the entire relative path, never silently repair it with basename(). */
+function imageLocation(relPath?: string | null) {
+    if (typeof relPath !== 'string') return null;
+    const match = /^uploads\/prizes\/([A-Za-z0-9_-]+\.(png|jpg|jpeg|webp))$/.exec(relPath);
+    if (!match) return null;
+    return {
+        absolutePath: path.join(process.cwd(), 'data', SUB_DIR, match[1]),
+        ext: match[2],
+        mime: MIME_BY_EXT[match[2]],
+    };
+}
 
+/** Read only supported regular image files whose extension agrees with magic bytes. */
+export async function readPrizeImage(relPath?: string | null): Promise<{ data: Buffer; mime: string } | null> {
+    const location = imageLocation(relPath);
+    if (!location) return null;
+    let file: FileHandle | undefined;
     try {
-        await fs.unlink(path.join(process.cwd(), 'data', SUB_DIR, baseName));
+        file = await fs.open(location.absolutePath, constants.O_RDONLY | constants.O_NOFOLLOW);
+        const stat = await file.stat();
+        if (!stat.isFile() || stat.size > MAX_BYTES) return null;
+        const data = await file.readFile();
+        const expectedType = location.ext === 'jpeg' ? 'jpg' : location.ext;
+        if (data.length > MAX_BYTES || detectImageType(data) !== expectedType) return null;
+        return { data, mime: location.mime };
     } catch {
-        // 文件已不存在等情况忽略
+        return null;
+    } finally {
+        await file?.close();
     }
+}
+
+/** Low-level removal. Database-backed callers must use the reference-safe wrapper. */
+export async function deletePrizeImage(relPath?: string | null): Promise<void> {
+    const location = imageLocation(relPath);
+    if (!location) return;
+    try {
+        await fs.unlink(location.absolutePath);
+    } catch {
+        // 文件已不存在等情况忽略。
+    }
+}
+
+type ImageReferenceReader = Pick<Prisma.TransactionClient, 'prize' | 'drawRecord'>;
+
+/** Preserve files referenced by any Prize or any DrawRecord (not just this prize). */
+export async function deletePrizeImageIfUnreferenced(relPath: string | null | undefined, db: ImageReferenceReader): Promise<void> {
+    if (!relPath || !imageLocation(relPath)) return;
+    const [prize, record] = await Promise.all([
+        db.prize.findFirst({ where: { imagePath: relPath }, select: { id: true } }),
+        db.drawRecord.findFirst({ where: { prizeImagePath: relPath }, select: { id: true } }),
+    ]);
+    if (!prize && !record) await deletePrizeImage(relPath);
 }

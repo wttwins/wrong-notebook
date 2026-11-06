@@ -51,6 +51,7 @@ interface DrawResult {
     imagePath: string | null;
     isBlank: boolean;
     stockLeft: number | null;
+    recordId: string | null;
 }
 
 /** 转盘动画时长（毫秒）。结果先拿到，动画是"演出时间"，可固定。 */
@@ -152,11 +153,13 @@ export default function LotteryPage() {
         try {
             // 关键：结果由服务端决定，动画只是把它「演」出来
             const res = await apiClient.post<{
-                prize: DrawResult;
+                prize: Omit<DrawResult, 'recordId'>;
+                recordId: string | null;
                 drawsLeft: number;
                 drawsUsedToday: number;
             }>('/api/lottery/draw', {});
 
+            setResult({ ...res.prize, recordId: res.recordId });
             const idx = wheelItems.findIndex((i) => i.id === res.prize.id);
 
             if (idx >= 0) {
@@ -165,11 +168,9 @@ export default function LotteryPage() {
                 rotationRef.current = next;
                 setSpinDuration(SPIN_MS);
                 setRotation(next);
-                setResult(res.prize);
             } else {
                 // 布局刚被刷新（例如奖品刚好被抽完），无法定位扇区：直接出结果
                 setSpinning(false);
-                setResult(res.prize);
                 setShowResult(true);
                 await loadAll();
             }
@@ -339,7 +340,7 @@ export default function LotteryPage() {
                                                     {r.imagePath ? (
                                                         // eslint-disable-next-line @next/next/no-img-element
                                                         <img
-                                                            src={`/api/lottery/prizes/${r.prizeId}/image`}
+                                                            src={`/api/lottery/records/${r.id}/image`}
                                                             alt={r.prizeName}
                                                             className="h-full w-full object-cover"
                                                         />
@@ -373,11 +374,11 @@ export default function LotteryPage() {
                     </DialogHeader>
 
                     <div className="flex flex-col items-center gap-3 py-2">
-                        {result?.imagePath && (
+                        {result?.imagePath && result.recordId && (
                             <div className="h-40 w-40 overflow-hidden rounded-lg bg-muted">
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <img
-                                    src={`/api/lottery/prizes/${result.id}/image`}
+                                    src={`/api/lottery/records/${result.recordId}/image`}
                                     alt={result.name}
                                     className="h-full w-full object-cover"
                                 />

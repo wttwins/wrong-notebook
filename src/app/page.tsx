@@ -9,7 +9,7 @@ import { ImageCropper } from "@/components/image-cropper";
 import { ParsedQuestion } from "@/lib/ai";
 import { UserWelcome } from "@/components/user-welcome";
 import { apiClient } from "@/lib/api-client";
-import { AnalyzeResponse, Notebook, AppConfig } from "@/types/api";
+import { AnalyzeResponse, Notebook, RuntimeConfig } from "@/types/api";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { processImageFile } from "@/lib/image-utils";
@@ -36,7 +36,7 @@ function HomeContent() {
     const [notebooks, setNotebooks] = useState<{ id: string; name: string }[]>([]);
     const [autoSelectedNotebookId, setAutoSelectedNotebookId] = useState<string | null>(null);
 
-    const [config, setConfig] = useState<AppConfig | null>(null);
+    const [config, setConfig] = useState<RuntimeConfig | null>(null);
 
     // Input mode: "image" for photo upload, "text" for AI solve, "direct" for manual entry
     const [inputMode, setInputMode] = useState<"image" | "text" | "direct">("image");
@@ -64,8 +64,8 @@ function HomeContent() {
             .then(data => setNotebooks(data))
             .catch(err => console.error("Failed to fetch notebooks:", err));
 
-        // Fetch settings for timeouts
-        apiClient.get<AppConfig>("/api/settings")
+        // Fetch only non-secret runtime settings; full AI settings are admin-only.
+        apiClient.get<RuntimeConfig>("/api/runtime-config")
             .then(data => {
                 setConfig(data);
                 if (data.timeouts?.analyze) {

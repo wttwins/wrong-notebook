@@ -112,6 +112,10 @@ function weightedPick<T extends { weight: number }>(items: T[]): T | null {
     return items[items.length - 1] ?? null;
 }
 
+// SQLite has one writer. Avoid competing interactive BEGIN calls in this process;
+// the database transaction below remains authoritative across processes/engines.
+let drawQueue: Promise<void> = Promise.resolve();
+
 /**
  * 执行一次抽奖。
  *
@@ -122,6 +126,13 @@ function weightedPick<T extends { weight: number }>(items: T[]): T | null {
  *   ④ 写中奖记录
  */
 export async function drawOnce(userId: string): Promise<DrawResult> {
+    const result = drawQueue.then(() => drawOnceInTransaction(userId));
+    // A failed draw must release the queue rather than reject every later draw.
+    drawQueue = result.then(() => undefined, () => undefined);
+    return result;
+}
+
+async function drawOnceInTransaction(userId: string): Promise<DrawResult> {
     const MAX_RETRY = 5;
 
     if (!isLotteryEnabled()) {

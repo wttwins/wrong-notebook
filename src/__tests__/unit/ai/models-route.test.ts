@@ -32,6 +32,11 @@ vi.mock('@/lib/auth', () => ({
     authOptions: {},
 }));
 
+// No real config-file reads: saved-target regression fixtures live in ai-runtime.test.ts.
+vi.mock('@/lib/config', () => ({
+    getAppConfig: vi.fn(() => ({ aiProvider: 'openai', openai: { instances: [] } })),
+}));
+
 const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
 

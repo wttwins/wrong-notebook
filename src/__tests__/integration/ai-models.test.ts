@@ -21,6 +21,11 @@ vi.mock('@/lib/auth', () => ({
     authOptions: {},
 }));
 
+// These are mocked route tests, not live-upstream or production-config checks.
+vi.mock('@/lib/config', () => ({
+    getAppConfig: vi.fn(() => ({ aiProvider: 'openai', openai: { instances: [] } })),
+}));
+
 // Import after mocks
 import { GET } from '@/app/api/ai/models/route';
 import { getServerSession } from 'next-auth';

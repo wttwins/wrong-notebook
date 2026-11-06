@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { MarkdownRenderer } from "@/components/markdown-renderer";
 import { apiClient } from "@/lib/api-client";
-import { AppConfig } from "@/types/api";
+import { RuntimeConfig } from "@/types/api";
 import { frontendLogger } from "@/lib/frontend-logger";
 
 export const dynamic = 'force-dynamic';
@@ -30,10 +30,10 @@ function PracticeContent() {
     const [notes, setNotes] = useState("");
     const [isSubmitted, setIsSubmitted] = useState(false);
     const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
-    const [config, setConfig] = useState<AppConfig | null>(null);
+    const [config, setConfig] = useState<RuntimeConfig | null>(null);
 
     useEffect(() => {
-        apiClient.get<AppConfig>("/api/settings")
+        apiClient.get<RuntimeConfig>("/api/runtime-config")
             .then(data => {
                 setConfig(data);
                 if (data.timeouts?.analyze) {

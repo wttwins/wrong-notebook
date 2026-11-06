@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { unauthorized } from '@/lib/api-errors';
 import { createLogger } from '@/lib/logger';
-import { checkOutboundUrl } from '@/lib/ssrf-guard';
+import { parseModelsRequest, resolveAIRequestTarget } from '@/lib/ai/request-target';
 
 const logger = createLogger('api:ai:models');
 
@@ -20,7 +20,7 @@ function extractModelName(modelId: string): string {
 }
 
 async function fetchGeminiModels(apiKey: string, baseUrl: string): Promise<ModelInfo[]> {
-    const url = `${baseUrl}/v1beta/models?key=${apiKey}`;
+    const url = `${baseUrl}/v1beta/models?key=${encodeURIComponent(apiKey)}`;
 
     const response = await fetch(url, {
         headers: { 'Content-Type': 'application/json' },
@@ -77,49 +77,31 @@ export async function GET(req: NextRequest) {
         return unauthorized("Authentication required");
     }
 
-    // 自定义 baseUrl 等同于让服务器去任意地址发起请求，必须限制为管理员，
-    // 并额外做一次内网地址过滤（见 src/lib/ssrf-guard.ts）。
+    // 自定义/已保存的目标仅管理员可用；可信私网与临时目标由同一边界解析。
     const isAdmin = (session.user as { role?: string }).role === 'admin';
 
     try {
         const { searchParams } = new URL(req.url);
-        const provider = searchParams.get('provider');
-        const apiKey = searchParams.get('apiKey');
-        const baseUrl = searchParams.get('baseUrl');
-
-        if (!apiKey) {
-            return NextResponse.json(
-                { error: 'API key is required' },
-                { status: 400 }
-            );
+        const parsed = parseModelsRequest(searchParams);
+        if (!parsed.success) {
+            return NextResponse.json({ error: parsed.error.issues[0].message, models: [] }, { status: 400 });
         }
-
-        if (baseUrl) {
-            if (!isAdmin) {
-                return NextResponse.json(
-                    { error: '仅管理员可指定自定义接口地址', models: [] },
-                    { status: 403 }
-                );
-            }
-            const check = checkOutboundUrl(baseUrl);
-            if (!check.ok) {
-                logger.warn({ baseUrl, reason: check.reason }, 'Blocked outbound URL');
-                return NextResponse.json(
-                    { error: `接口地址不被允许：${check.reason}`, models: [] },
-                    { status: 400 }
-                );
-            }
+        if (parsed.data.provider === 'azure') {
+            return NextResponse.json({ error: 'Azure 不支持模型列表，请填写部署名称', models: [] }, { status: 400 });
         }
+        const resolved = resolveAIRequestTarget(parsed.data, isAdmin);
+        if (!resolved.ok) {
+            return NextResponse.json({ error: resolved.error, models: [] }, { status: resolved.status });
+        }
+        const { provider, apiKey, baseUrl } = resolved.target;
 
         let models: ModelInfo[] = [];
 
         if (provider === 'gemini') {
-            const effectiveBaseUrl = baseUrl || 'https://generativelanguage.googleapis.com';
-            models = await fetchGeminiModels(apiKey, effectiveBaseUrl);
+            models = await fetchGeminiModels(apiKey, baseUrl!);
         } else {
             // OpenAI-compatible
-            const effectiveBaseUrl = baseUrl || 'https://api.openai.com/v1';
-            models = await fetchOpenAIModels(apiKey, effectiveBaseUrl);
+            models = await fetchOpenAIModels(apiKey, baseUrl!);
         }
 
         return NextResponse.json({ models });

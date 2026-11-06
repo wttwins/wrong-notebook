@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { apiClient, ApiError } from "@/lib/api-client";
+import { buildPrizePayload, EMPTY_PRIZE_FORM as EMPTY_FORM, MAX_PRISMA_INT, PrizeFormError, type PrizeForm } from "@/lib/prize-form";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,29 +51,6 @@ interface LotteryConfig {
     drawsPerDay: number;
 }
 
-interface PrizeForm {
-    id?: string;
-    name: string;
-    description: string;
-    weight: number;
-    stock: string;       // 空字符串 = 不限量
-    enabled: boolean;
-    isBlank: boolean;
-    sortOrder: number;
-    imageDataUrl?: string | null;
-    removeImage?: boolean;
-}
-
-const EMPTY_FORM: PrizeForm = {
-    name: '',
-    description: '',
-    weight: 10,
-    stock: '',
-    enabled: true,
-    isBlank: false,
-    sortOrder: 0,
-};
-
 // 图片上限 2MB，与服务端保持一致
 const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
 
@@ -93,6 +71,7 @@ export default function AdminLotteryPage() {
 
     const [dialogOpen, setDialogOpen] = useState(false);
     const [form, setForm] = useState<PrizeForm>(EMPTY_FORM);
+    const [originalForm, setOriginalForm] = useState<PrizeForm | null>(null);
     const [saving, setSaving] = useState(false);
     const [formError, setFormError] = useState<string | null>(null);
     const fileRef = useRef<HTMLInputElement>(null);
@@ -100,7 +79,6 @@ export default function AdminLotteryPage() {
     // 非管理员直接踢回首页
     useEffect(() => {
         if (sessionStatus === 'unauthenticated') router.push('/login');
-        // @ts-ignore
         if (sessionStatus === 'authenticated' && session?.user?.role !== 'admin') router.push('/');
     }, [sessionStatus, session, router]);
 
@@ -145,12 +123,13 @@ export default function AdminLotteryPage() {
 
     const openCreate = () => {
         setForm({ ...EMPTY_FORM });
+        setOriginalForm(null);
         setFormError(null);
         setDialogOpen(true);
     };
 
     const openEdit = (p: AdminPrize) => {
-        setForm({
+        const snapshot: PrizeForm = {
             id: p.id,
             name: p.name,
             description: p.description ?? '',
@@ -159,9 +138,12 @@ export default function AdminLotteryPage() {
             enabled: p.enabled,
             isBlank: p.isBlank,
             sortOrder: p.sortOrder,
+            hasImage: p.hasImage,
             imageDataUrl: null,
             removeImage: false,
-        });
+        };
+        setOriginalForm(snapshot);
+        setForm({ ...snapshot });
         setFormError(null);
         setDialogOpen(true);
     };
@@ -190,19 +172,8 @@ export default function AdminLotteryPage() {
         setSaving(true);
         setFormError(null);
 
-        const payload: Record<string, unknown> = {
-            name: form.name.trim(),
-            description: form.description.trim(),
-            weight: Number(form.weight) || 1,
-            stock: form.stock === '' ? null : Number(form.stock),
-            enabled: form.enabled,
-            isBlank: form.isBlank,
-            sortOrder: Number(form.sortOrder) || 0,
-        };
-        if (form.imageDataUrl) payload.imageDataUrl = form.imageDataUrl;
-        if (form.removeImage) payload.removeImage = true;
-
         try {
+            const payload = buildPrizePayload(form, originalForm);
             if (form.id) {
                 await apiClient.patch(`/api/admin/prizes/${form.id}`, payload);
             } else {
@@ -211,9 +182,11 @@ export default function AdminLotteryPage() {
             setDialogOpen(false);
             await loadAll();
         } catch (e) {
-            const msg = e instanceof ApiError && typeof e.data === 'object' && e.data && 'error' in e.data
-                ? String((e.data as { error?: string }).error)
-                : L.saveFailed;
+            const errorData = e instanceof ApiError && typeof e.data === 'object' && e.data
+                ? e.data as { message?: unknown; error?: unknown } : null;
+            const msg = e instanceof PrizeFormError ? e.message
+                : typeof errorData?.message === 'string' ? errorData.message
+                : typeof errorData?.error === 'string' ? errorData.error : L.saveFailed;
             setFormError(msg);
         } finally {
             setSaving(false);
@@ -252,7 +225,7 @@ export default function AdminLotteryPage() {
 
     const previewSrc = form.imageDataUrl
         ? form.imageDataUrl
-        : (!form.removeImage && form.id
+        : (!form.removeImage && form.id && originalForm?.hasImage
             ? `/api/lottery/prizes/${form.id}/image`
             : null);
 
@@ -489,6 +462,7 @@ export default function AdminLotteryPage() {
                                     id="prize-stock"
                                     type="number"
                                     min={0}
+                                    max={MAX_PRISMA_INT}
                                     value={form.stock}
                                     placeholder={LT.unlimited}
                                     onChange={(e) => setForm((f) => ({ ...f, stock: e.target.value }))}
