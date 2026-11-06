@@ -213,7 +213,7 @@ export class OpenAIProvider implements AIService {
                         ],
                     },
                 ],
-                max_tokens: 8192,
+                max_tokens: 32768, ...({ thinking: { type: "disabled" } } as any),
             };
 
             logger.box('📤 API Request (发送给 AI 的原始请求)', JSON.stringify(requestParamsForLog, null, 2));
@@ -246,7 +246,7 @@ export class OpenAIProvider implements AIService {
                     body: JSON.stringify({
                         model: this.model,
                         messages,
-                        max_tokens: 8192,
+                        max_tokens: 32768, ...({ thinking: { type: "disabled" } } as any),
                     }),
                 });
 
@@ -278,7 +278,7 @@ export class OpenAIProvider implements AIService {
                         },
                     ],
                     // response_format: { type: "json_object" }, // Removing to improve compatibility with 3rd party providers
-                    max_tokens: 8192,
+                    max_tokens: 32768, ...({ thinking: { type: "disabled" } } as any),
                 });
             }
 
@@ -338,7 +338,7 @@ export class OpenAIProvider implements AIService {
                     { role: "user", content: userPrompt },
                 ],
                 // response_format: { type: "json_object" }, // Removing to improve compatibility with 3rd party providers
-                max_tokens: 8192,
+                max_tokens: 32768, ...({ thinking: { type: "disabled" } } as any),
             });
 
             const text = response.choices[0]?.message?.content || "";
@@ -408,7 +408,7 @@ export class OpenAIProvider implements AIService {
                     { role: "system", content: prompt },
                     { role: "user", content: userContent }
                 ],
-                max_tokens: 8192,
+                max_tokens: 32768, ...({ thinking: { type: "disabled" } } as any),
             });
 
             logger.debug({ response: JSON.stringify(response) }, 'Full API response');
