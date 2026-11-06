@@ -10,12 +10,20 @@ VERSION_FILE="/app/data/.app_version"
 PRISMA_BIN="node /app/node_modules/prisma/build/index.js"
 SEED_ADMIN_SCRIPT="/app/dist-scripts/scripts/seed-admin.js"
 REBUILD_TAGS_SCRIPT="/app/dist-scripts/scripts/rebuild-system-tags.js"
+AUTH_SECRET_SCRIPT="/app/dist-scripts/scripts/ensure-auth-secret.js"
 
 # Get current app version from package.json
 CURRENT_VERSION=$(node -p "require('./package.json').version" 2>/dev/null || echo "unknown")
 
 # Fix permissions for data and config directories
 chown -R nextjs:nodejs /app/data /app/config
+
+# Preserve an explicit secret; otherwise create/reuse it as the service user.
+# The helper enforces mode 0600. A failure aborts startup via set -e.
+if [ -z "${NEXTAUTH_SECRET:-}" ]; then
+    NEXTAUTH_SECRET=$(su-exec nextjs:nodejs node "$AUTH_SECRET_SCRIPT")
+fi
+export NEXTAUTH_SECRET
 
 # Check if the persistent database exists
 if [ ! -s "$TARGET_DB" ]; then

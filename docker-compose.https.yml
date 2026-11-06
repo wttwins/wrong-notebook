@@ -30,7 +30,8 @@ services:
       # === 必须配置（请修改） ===
       # 替换为你的实际访问地址
       - NEXTAUTH_URL=https://YOUR_IP_OR_DOMAIN
-      - NEXTAUTH_SECRET=your_secret_key_here
+      # 留空时由容器自动生成并持久化到 ./data/.nextauth_secret；也可在部署目录 .env 中设置。
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-}
       - AUTH_TRUST_HOST=true
       
       # === HTTPS 配置 ===
