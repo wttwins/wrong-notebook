@@ -112,13 +112,32 @@ export interface PromptOptions {
   prefetchedEnglishTags?: string[];
 }
 
+export const MATH_RENDERING_INSTRUCTIONS = String.raw`【公式输出约定 MATH_RENDERING_CONTRACT】
+以下规则适用于 question_text、answer_text、analysis、wrong_answer_text 和 mistake_analysis 中的所有公式。
+1. 输出仍是任务要求的标签纯文本，不是 JSON。不要用代码围栏或反引号包住公式；不要写 HTML、MathML、整份 LaTeX 文档或自定义宏。
+2. 行内数学只用 $...$，例如 $\frac{1}{2}$、$x\neq0$。禁止用 \(...\) 和 \[...\]，也不要省略数学分隔符。
+3. 块公式只用成对的 $$；开始和结束的 $$ 必须分别独占一行，公式前后各空一行。不要把块公式接在句子、列表标记或表格单元格后面；不要缩进四个空格。
+4. 标签内容直接输出单个反斜杠命令，例如 \frac、\sqrt、\nu、\nabla；不要进行 JSON 二次转义。换行必须是真实换行，不要输出字面量反斜杠加 n。唯一需要连续两个反斜杠的场景是矩阵或多行推导中的行分隔符。
+5. 使用 KaTeX 支持的基础命令；多行推导用 aligned，矩阵用 pmatrix 或 bmatrix，分段函数用 cases，均放在一个块公式内。不要使用 align、equation、eqnarray、\label、\ref、\tag 或依赖额外宏包的语法。长推导按等号或步骤拆分，不写超长单行。
+6. 普通解释和标点放在公式外；公式内部的文字用 \text{...}，单位用 \mathrm{...}，百分号使用半角命令 \%（例如 $25\%$）。Markdown 表格内只放行内公式，绝对值用 \lvert x\rvert、条件概率用 P(A\mid B)，不要让裸竖线破坏表格。
+7. 完成答案后静默检查：数学分隔符、花括号、\left 与 \right、\begin 与 \end 均成对；每个任务标签只输出一次且闭合；数值结果与推导一致。不要输出检查过程。对不可辨识的原题文字说明不确定，不编造条件或学生错误。
+
+块公式格式示例（直接按此布局，不加代码围栏）：
+
+$$
+\begin{aligned}
+f(x)&=x^2+1\\
+f'(x)&=2x
+\end{aligned}
+$$`;
+
 export const DEFAULT_ANALYZE_TEMPLATE = `【角色与核心任务 (ROLE AND CORE TASK)】
 你是一位世界顶尖的、经验丰富的、专业的跨学科考试分析专家（Interdisciplinary Exam Analysis Expert）。你的核心任务是极致准确地分析用户提供的考试题目图片，全面理解所有文本、图表和隐含约束，并提供一个完整、高度结构化且专业的解决方案。
 
 {{language_instruction}}
 
 【核心输出要求 (OUTPUT REQUIREMENTS)】
-你的响应输出**必须严格遵循以下自定义标签格式**。**严禁**使用 JSON 或 Markdown 代码块。**严禁**对 LaTeX 公式中的反斜杠进行二次转义（如 "\\frac" 是错误的，必须是 "\frac"）。
+你的响应输出**必须严格遵循以下自定义标签格式**。**严禁**使用 JSON 或 Markdown 代码块。**严禁**对 LaTeX 公式中的反斜杠进行二次转义（如 "\\\\frac" 是错误的，必须是 "\\frac"）。
 
 请严格按照以下结构输出内容：
 
@@ -192,7 +211,7 @@ export const DEFAULT_ANALYZE_TEMPLATE = `【角色与核心任务 (ROLE AND CORE
 <analysis>
 在此处填写详细的步骤解析。
 * 必须使用简体中文。
-* **直接使用标准的 LaTeX 符号**（如 $\frac{1}{2}$），**不要**进行 JSON 转义（不要写成 \\frac）。
+* **直接使用标准的 LaTeX 符号**（如 $\\frac{1}{2}$），**不要**进行 JSON 转义（不要写成 \\\\frac）。
 * 如果解析过程需要表格（如列表对比、分步计算表），遵循上述【表格处理规则】。
 </analysis>
 
@@ -256,7 +275,7 @@ export const DEFAULT_SIMILAR_TEMPLATE = `你是一位资深的K12教育题目生
 <analysis>
 在此处填写新题目的详细解析。
 * 必须使用简体中文。
-* **直接使用标准的 LaTeX 符号**（如 $\frac{1}{2}$），**不要**进行 JSON 转义。
+* **直接使用标准的 LaTeX 符号**（如 $\\frac{1}{2}$），**不要**进行 JSON 转义。
 </analysis>
 
 ###关键格式与内容约束 (CRITICAL RULES) !!!
@@ -407,7 +426,7 @@ ${englishTagsString}`;
     knowledge_points_list: tagsSection,
     grade_instruction: generateGradeInstruction(gradeSemester),
     provider_hints: options?.providerHints || ''
-  }).trim();
+  }).trim() + '\n\n' + MATH_RENDERING_INSTRUCTIONS;
 }
 
 /**
@@ -447,7 +466,7 @@ export function generateSimilarQuestionPrompt(
     knowledge_points: knowledgePoints.join(", "),
     grade_instruction: generateGradeInstruction(gradeSemester),
     provider_hints: options?.providerHints || ''
-  }).trim();
+  }).trim() + '\n\n' + MATH_RENDERING_INSTRUCTIONS;
 }
 
 /**
@@ -661,5 +680,5 @@ export function generateReanswerPrompt(
     subject_hint: subjectHint,
     grade_instruction: generateGradeInstruction(gradeSemester),
     provider_hints: options?.providerHints || ''
-  }).trim();
+  }).trim() + '\n\n' + MATH_RENDERING_INSTRUCTIONS;
 }
