@@ -107,6 +107,25 @@ export interface OpenAIInstance {
     apiKey: string;
     baseUrl: string;
     model: string;
+    /**
+     * 关闭推理模型的「思考模式」。
+     *
+     * 背景：部分推理模型默认开启思考模式，思维链 token 会计入
+     * max_tokens。当推理长度超出上限时 finish_reason 为 "length"，
+     * content 返回空字符串，导致解析失败（表现为 AI_UNKNOWN_ERROR / 502）。
+     *
+     * - true：强制关闭思考模式（推荐，结构化输出更稳定）
+     * - false：强制开启思考模式（需自行调大 max_tokens）
+     * - undefined：交由后端判定。若环境变量 THINKING_CAPABLE_HOSTS 中配置了
+     *   该端点，则默认关闭；未配置则保持原有行为。
+     */
+    disableThinking?: boolean;
+}
+
+export interface RuntimeConfig {
+    timeouts: {
+        analyze: number; // 毫秒；可对已登录用户公开，不包含 AI 配置或密钥
+    };
 }
 
 export interface AppConfig {

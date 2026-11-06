@@ -28,7 +28,7 @@ export default function StatsPage() {
                 <div className="ml-auto flex items-center">
                     <Link href="/">
                         <Button variant="ghost" size="icon">
-                            <House className="h-5 w-5" />
+                            <House className="h-5 w-5 md:h-6 md:w-6" />
                         </Button>
                     </Link>
                 </div>
@@ -37,11 +37,11 @@ export default function StatsPage() {
             <Tabs defaultValue="wrong" className="w-full">
                 <TabsList className="grid w-full grid-cols-2 mb-6">
                     <TabsTrigger value="wrong" className="flex items-center gap-2">
-                        <Activity className="h-4 w-4" />
+                        <Activity className="h-4 w-4 md:h-6 md:w-6" />
                         {t.wrongAnswerStats?.title || "Wrong Answer Stats"}
                     </TabsTrigger>
                     <TabsTrigger value="practice" className="flex items-center gap-2">
-                        <TrendingUp className="h-4 w-4" />
+                        <TrendingUp className="h-4 w-4 md:h-6 md:w-6" />
                         {t.stats?.title || "Practice Stats"}
                     </TabsTrigger>
                 </TabsList>

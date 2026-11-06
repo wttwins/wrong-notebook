@@ -73,7 +73,7 @@ export default function NotebookDetailPage() {
                                 onClick={() => setRenameDialogOpen(true)}
                                 title={t.notebooks?.rename || "Rename"}
                             >
-                                <Pencil className="h-4 w-4" />
+                                <Pencil className="h-4 w-4 md:h-6 md:w-6" />
                             </Button>
                         </div>
                         <p className="text-muted-foreground text-sm sm:text-base">
@@ -83,16 +83,16 @@ export default function NotebookDetailPage() {
                     <div className="flex items-center gap-2 shrink-0">
                         <Link href={`/notebooks/${notebook.id}/add`}>
                             <Button size="sm" className="hidden sm:flex">
-                                <Plus className="mr-2 h-4 w-4" />
+                                <Plus className="mr-2 h-4 w-4 md:h-6 md:w-6" />
                                 {t.notebooks?.addError || "Add Error"}
                             </Button>
                             <Button size="icon" className="sm:hidden">
-                                <Plus className="h-4 w-4" />
+                                <Plus className="h-4 w-4 md:h-6 md:w-6" />
                             </Button>
                         </Link>
                         <Link href="/">
                             <Button variant="ghost" size="icon">
-                                <House className="h-5 w-5" />
+                                <House className="h-5 w-5 md:h-6 md:w-6" />
                             </Button>
                         </Link>
                     </div>

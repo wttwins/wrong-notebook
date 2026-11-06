@@ -2,7 +2,7 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
   binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
@@ -22,34 +22,35 @@ model User {
   educationStage String? // primary, junior_high, senior_high, university
   enrollmentYear Int?
 
-  role      String   @default("user") // "admin" or "user"
-  isActive  Boolean  @default(true)   // 用户是否启用
+  role     String  @default("user") // "admin" or "user"
+  isActive Boolean @default(true) // 用户是否启用
 
-  errorItems ErrorItem[]
-  subjects   Subject[]
+  errorItems      ErrorItem[]
+  subjects        Subject[]
   practiceRecords PracticeRecord[]
-  customTags KnowledgeTag[] // User's custom tags
+  customTags      KnowledgeTag[] // User's custom tags
+  draws           DrawRecord[] // 抽奖记录
 }
 
 // 统一知识点标签表 (支持无限层级)
 model KnowledgeTag {
-  id        String   @id @default(cuid())
-  name      String   // 标签名，如 "勾股定理"
-  subject   String   // 学科，如 "math", "english"
+  id      String @id @default(cuid())
+  name    String // 标签名，如 "勾股定理"
+  subject String // 学科，如 "math", "english"
 
   // 层级控制 (邻接表模式)
-  parentId  String?
-  parent    KnowledgeTag?  @relation("TagHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
-  children  KnowledgeTag[] @relation("TagHierarchy")
+  parentId String?
+  parent   KnowledgeTag?  @relation("TagHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children KnowledgeTag[] @relation("TagHierarchy")
 
   // 排序与编码
-  order     Int      @default(0) // 用于保持教材顺序
-  code      String?              // 如 "1.2.1"
+  order Int     @default(0) // 用于保持教材顺序
+  code  String? // 如 "1.2.1"
 
   // 区分系统预设 vs 用户自定义
-  isSystem  Boolean  @default(false)
-  userId    String?  // 如果是用户自定义标签，绑定 userId
-  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  isSystem Boolean @default(false)
+  userId   String? // 如果是用户自定义标签，绑定 userId
+  user     User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // 与错题的多对多关系
   errorItems ErrorItem[]
@@ -79,15 +80,15 @@ model Subject {
 }
 
 model ErrorItem {
-  id             String   @id @default(cuid())
-  userId         String
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  subjectId      String?
-  subject        Subject? @relation(fields: [subjectId], references: [id], onDelete: Cascade)
-  
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subjectId String?
+  subject   Subject? @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
   originalImageUrl String
   ocrText          String?
-  
+
   // AI Analysis
   questionText     String? // Parsed question
   answerText       String? // AI provided answer
@@ -99,19 +100,19 @@ model ErrorItem {
   geogebraCommands String? // GeoGebra commands for interactive demo (JSON or newline-separated)
 
   // New: many-to-many relation with KnowledgeTag
-  tags             KnowledgeTag[]
-  
+  tags KnowledgeTag[]
+
   // User Metadata
-  source           String? // e.g. "Midterm Exam"
-  errorType        String? // e.g. "Calculation", "Concept"
-  userNotes        String?
-  
-  masteryLevel     Int     @default(0) // 0: New, 1: Reviewing, 2: Mastered
-  gradeSemester    String? // e.g. "Junior High Grade 2, 1st Semester"
-  paperLevel       String? // e.g. "A", "B", "Other"
-  
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  source    String? // e.g. "Midterm Exam"
+  errorType String? // e.g. "Calculation", "Concept"
+  userNotes String?
+
+  masteryLevel  Int     @default(0) // 0: New, 1: Reviewing, 2: Mastered
+  gradeSemester String? // e.g. "Junior High Grade 2, 1st Semester"
+  paperLevel    String? // e.g. "A", "B", "Other"
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   reviewSchedules ReviewSchedule[]
 }
@@ -120,22 +121,64 @@ model ReviewSchedule {
   id          String    @id @default(cuid())
   errorItemId String
   errorItem   ErrorItem @relation(fields: [errorItemId], references: [id], onDelete: Cascade)
-  
+
   scheduledFor DateTime
   completedAt  DateTime?
   isCorrect    Boolean? // Result of the review
-  
-  createdAt    DateTime @default(now())
+
+  createdAt DateTime @default(now())
 }
 
 model PracticeRecord {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  subject   String?  // e.g. "Math", "Physics"
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  subject    String? // e.g. "Math", "Physics"
   difficulty String? // "easy", "medium", "hard", "harder"
-  isCorrect Boolean?
-  
+  isCorrect  Boolean?
+
   createdAt DateTime @default(now())
+}
+
+// ============================================================
+//  抽奖（独立功能，不与错题、积分挂钩）
+//  奖品由管理员上传图片 + 编辑文字，用户按每天次数抽取。
+// ============================================================
+
+model Prize {
+  id          String  @id @default(cuid())
+  name        String // 奖品名称，如「免做一次作业券」
+  description String? // 补充说明
+  imagePath   String? // 相对路径：uploads/prizes/xxx.png；为空则用文字卡片
+  weight      Int     @default(1) // 相对权重，越大越容易抽中
+  stock       Int? // null = 不限量；0 = 已抽完
+  enabled     Boolean @default(true)
+  // 「谢谢参与」这类不展示在奖品墙上的占位项
+  isBlank     Boolean @default(false)
+  sortOrder   Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  draws DrawRecord[]
+
+  @@index([enabled, sortOrder])
+}
+
+model DrawRecord {
+  id      String @id @default(cuid())
+  userId  String
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  prizeId String
+  prize   Prize  @relation(fields: [prizeId], references: [id], onDelete: Restrict)
+
+  // 抽中时的奖品快照：即使之后管理员改名/换图，历史记录仍显示当时的样子
+  prizeName      String
+  prizeImagePath String?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
 }

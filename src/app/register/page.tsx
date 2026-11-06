@@ -145,6 +145,11 @@ export default function RegisterPage() {
                                 id="email"
                                 name="email"
                                 type="email"
+                                autoComplete="username"
+                                inputMode="email"
+                                autoCapitalize="none"
+                                autoCorrect="off"
+                                spellCheck={false}
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                                 required
@@ -159,6 +164,9 @@ export default function RegisterPage() {
                                     id="password"
                                     name="password"
                                     type={showPassword ? "text" : "password"}
+                                    // new-password 才会让浏览器提示「保存密码」，
+                                    // 配合登录页的 current-password 实现面容/指纹自动填充
+                                    autoComplete="new-password"
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
                                     required
@@ -174,9 +182,9 @@ export default function RegisterPage() {
                                     tabIndex={-1}
                                 >
                                     {showPassword ? (
-                                        <EyeOff className="h-4 w-4 text-muted-foreground" />
+                                        <EyeOff className="h-4 w-4 md:h-6 md:w-6 text-muted-foreground" />
                                     ) : (
-                                        <Eye className="h-4 w-4 text-muted-foreground" />
+                                        <Eye className="h-4 w-4 md:h-6 md:w-6 text-muted-foreground" />
                                     )}
                                 </Button>
                             </div>
@@ -205,9 +213,9 @@ export default function RegisterPage() {
                                     tabIndex={-1}
                                 >
                                     {showConfirmPassword ? (
-                                        <EyeOff className="h-4 w-4 text-muted-foreground" />
+                                        <EyeOff className="h-4 w-4 md:h-6 md:w-6 text-muted-foreground" />
                                     ) : (
-                                        <Eye className="h-4 w-4 text-muted-foreground" />
+                                        <Eye className="h-4 w-4 md:h-6 md:w-6 text-muted-foreground" />
                                     )}
                                 </Button>
                             </div>

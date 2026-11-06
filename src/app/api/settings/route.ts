@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { getAppConfig, updateAppConfig } from "@/lib/config";
-import { internalError } from "@/lib/api-errors";
+import { unauthorized, forbidden, internalError } from "@/lib/api-errors";
 import { createLogger } from "@/lib/logger";
 import { OpenAIInstance } from "@/types/api";
 
@@ -8,13 +10,37 @@ const logger = createLogger('api:settings');
 
 export const dynamic = 'force-dynamic';
 
+/**
+ * 鉴权：AI 配置是全局设置，且 GET 会返回完整 API Key（未脱敏），
+ * 因此仅允许已登录的管理员访问。
+ *
+ * 注意：middleware 的 matcher 显式排除了 /api/*，
+ * 所以每个 API 路由必须自行校验会话。
+ */
+async function requireAdmin() {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+        return { error: unauthorized("Authentication required") };
+    }
+    if ((session.user as { role?: string }).role !== 'admin') {
+        return { error: forbidden("Admin privileges required") };
+    }
+    return { session };
+}
+
 export async function GET() {
+    const auth = await requireAdmin();
+    if (auth.error) return auth.error;
+
     const config = getAppConfig();
     // Return full config including API keys since this is an authenticated endpoint
     return NextResponse.json(config);
 }
 
 export async function POST(req: Request) {
+    const auth = await requireAdmin();
+    if (auth.error) return auth.error;
+
     try {
         const body = await req.json();
         const currentConfig = getAppConfig();

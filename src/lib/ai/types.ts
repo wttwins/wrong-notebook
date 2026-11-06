@@ -34,6 +34,11 @@ export interface AIConfig {
     apiKey?: string;
     baseUrl?: string;
     model?: string;
+    /**
+     * 关闭推理模型的「思考模式」。
+     * true = 强制关闭；false = 强制开启；undefined = 由 Provider 按端点自动判定。
+     */
+    disableThinking?: boolean;
     // Azure OpenAI 特有字段
     azureDeployment?: string;   // Azure 部署名称
     azureApiVersion?: string;   // API 版本 (如 2024-02-15-preview)

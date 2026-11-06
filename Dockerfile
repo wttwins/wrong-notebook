@@ -19,6 +19,18 @@ COPY . .
 # Install OpenSSL for Prisma
 RUN apk add --no-cache openssl
 
+# 移除 mdast-util-gfm-autolink-literal 里的后行断言（lookbehind）。
+#
+# 原因：该依赖的邮箱自动链接正则使用了 (?<=...) 后行断言，需要 Safari 16.4+。
+# 在 Safari 16.3 及更早版本上，含该正则的 chunk 会在解析阶段抛
+#   SyntaxError: Invalid regular expression: invalid group specifier name
+# 导致整个 chunk 不执行 —— 表现为页面能显示但点击任何按钮无反应，
+# 登录表单甚至退化成原生 GET 提交（密码进入 URL）。
+#
+# 该后行断言是冗余的：同库的 findEmail() 已用 previous() 做了等价校验。
+# 详见 scripts/patch-lookbehind.cjs 的说明。
+RUN node scripts/patch-lookbehind.cjs
+
 # Generate Prisma Client and Seed Database
 # We temporarily set DATABASE_URL to a local file for the build process to generate the file
 ENV DATABASE_URL="file:/app/prisma/dev.db"

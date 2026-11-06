@@ -119,6 +119,27 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  /*
+   * 图标默认尺寸（lucide-react 矢量图标）
+   * 手机 18px，平板及以上（md: 768px）24px，改善可读性与可点击性。
+   *
+   * 必须加 !important：
+   * 组件上大量使用 h-4 / w-4 / size-4 等工具类，而 Tailwind 的 utilities 层
+   * 排在 base 层之后，同优先级下 utilities 胜出 —— 实测图标仍停在 16px。
+   * 加 !important 后由本规则统一接管（只作用于 svg.lucide，不会误伤别的元素）。
+   * 需要特定尺寸的地方，请在元素上用 size-* 类并同步调整此处的兜底值。
+   */
+  svg.lucide {
+    width: 1.125rem !important;
+    height: 1.125rem !important;
+  }
+  @media (min-width: 48rem) {
+    svg.lucide {
+      width: 1.5rem !important;
+      height: 1.5rem !important;
+    }
+  }
 }
 
 /* Print Styles for PDF Export */

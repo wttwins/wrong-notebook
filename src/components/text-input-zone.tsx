@@ -37,7 +37,7 @@ export function TextInputZone({ onSubmit, isAnalyzing, defaultNotebookName }: Te
         <Card className="border-dashed border-2 hover:border-primary/30 transition-colors">
             <CardContent className="p-6 space-y-4">
                 <div className="flex items-center gap-2 text-muted-foreground mb-2">
-                    <PenLine className="h-5 w-5" />
+                    <PenLine className="h-5 w-5 md:h-6 md:w-6" />
                     <span className="text-sm font-medium">
                         {t.app?.textInputHint || "手动输入题目文本"}
                     </span>
@@ -75,12 +75,12 @@ export function TextInputZone({ onSubmit, isAnalyzing, defaultNotebookName }: Te
                 >
                     {isAnalyzing ? (
                         <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            <Loader2 className="mr-2 h-4 w-4 md:h-6 md:w-6 animate-spin" />
                             {t.editor?.reanswering || "AI 解题中..."}
                         </>
                     ) : (
                         <>
-                            <Sparkles className="mr-2 h-4 w-4" />
+                            <Sparkles className="mr-2 h-4 w-4 md:h-6 md:w-6" />
                             {t.app?.aiSolve || "AI 解题"}
                         </>
                     )}

@@ -225,9 +225,9 @@ export function CorrectionEditor({ initialData, onSave, onCancel, imagePreview, 
                         disabled={isSaving}
                     >
                         {isSaving ? (
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            <Loader2 className="mr-2 h-4 w-4 md:h-6 md:w-6 animate-spin" />
                         ) : (
-                            <Save className="mr-2 h-4 w-4" />
+                            <Save className="mr-2 h-4 w-4 md:h-6 md:w-6" />
                         )}
                         {isSaving ? (t.common?.pleaseWait || "Please wait...") : t.editor.save}
                     </Button>
@@ -297,12 +297,12 @@ export function CorrectionEditor({ initialData, onSave, onCancel, imagePreview, 
                         >
                             {isReanswering ? (
                                 <>
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    <Loader2 className="mr-2 h-4 w-4 md:h-6 md:w-6 animate-spin" />
                                     {t.editor.reanswering || 'AI solving...'}
                                 </>
                             ) : (
                                 <>
-                                    <RefreshCw className="mr-2 h-4 w-4" />
+                                    <RefreshCw className="mr-2 h-4 w-4 md:h-6 md:w-6" />
                                     {t.editor.reanswer || '🔄 Reanswer (based on corrected question)'}
                                 </>
                             )}
@@ -415,7 +415,7 @@ export function CorrectionEditor({ initialData, onSave, onCancel, imagePreview, 
                         <div className="rounded-lg border border-dashed p-4">
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                    <Box className="h-4 w-4" />
+                                    <Box className="h-4 w-4 md:h-6 md:w-6" />
                                     <span>GeoGebra 动态演示</span>
                                 </div>
                                 <Button
@@ -426,12 +426,12 @@ export function CorrectionEditor({ initialData, onSave, onCancel, imagePreview, 
                                 >
                                     {isAnalyzingGeogebra ? (
                                         <>
-                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                            <Loader2 className="mr-2 h-4 w-4 md:h-6 md:w-6 animate-spin" />
                                             AI 分析中...
                                         </>
                                     ) : (
                                         <>
-                                            <Box className="mr-2 h-4 w-4" />
+                                            <Box className="mr-2 h-4 w-4 md:h-6 md:w-6" />
                                             生成演示
                                         </>
                                     )}

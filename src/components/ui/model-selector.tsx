@@ -14,6 +14,7 @@ import {
 import { RefreshCw, Loader2 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { AIModel, ModelsResponse } from "@/types/api";
+import { buildModelListParams } from "@/lib/ai/client-request";
 import { useLanguage } from "@/contexts/LanguageContext";
 
 interface ModelSelectorProps {
@@ -21,10 +22,12 @@ interface ModelSelectorProps {
     apiKey?: string;
     baseUrl?: string;
     currentModel?: string;
+    instanceId?: string;
+    useConfigured?: boolean;
     onModelChange: (model: string) => void;
 }
 
-export function ModelSelector({ provider, apiKey, baseUrl, currentModel, onModelChange }: ModelSelectorProps) {
+export function ModelSelector({ provider, apiKey, baseUrl, currentModel, instanceId, useConfigured, onModelChange }: ModelSelectorProps) {
     const { t } = useLanguage();
     const [models, setModels] = useState<AIModel[]>([]);
     const [loading, setLoading] = useState(false);
@@ -47,11 +50,7 @@ export function ModelSelector({ provider, apiKey, baseUrl, currentModel, onModel
         setError(null);
 
         try {
-            const params = new URLSearchParams({
-                provider,
-                apiKey,
-                ...(baseUrl && { baseUrl }),
-            });
+            const params = buildModelListParams({ provider, apiKey, baseUrl, instanceId, useConfigured });
 
             const data = await apiClient.get<ModelsResponse>(`/api/ai/models?${params}`);
 
@@ -106,9 +105,9 @@ export function ModelSelector({ provider, apiKey, baseUrl, currentModel, onModel
                     disabled={loading || !apiKey}
                 >
                     {loading ? (
-                        <Loader2 className="h-3 w-3 animate-spin" />
+                        <Loader2 className="h-3 w-3 md:h-5 md:w-5 animate-spin" />
                     ) : (
-                        <RefreshCw className="h-3 w-3" />
+                        <RefreshCw className="h-3 w-3 md:h-5 md:w-5" />
                     )}
                 </Button>
             </div>

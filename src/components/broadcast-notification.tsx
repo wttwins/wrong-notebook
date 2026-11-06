@@ -30,7 +30,7 @@ export function BroadcastNotification() {
                     className="rounded-full text-muted-foreground hover:text-primary relative"
                     title={t.broadcast?.title || "Announcements"}
                 >
-                    <Bell className="h-5 w-5" />
+                    <Bell className="h-5 w-5 md:h-6 md:w-6" />
                     {/* 未读角标 */}
                     {hasUnread && (
                         <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-red-500 animate-pulse" />
@@ -43,7 +43,7 @@ export function BroadcastNotification() {
                 className="w-72 sm:w-80 p-0"
             >
                 <DropdownMenuLabel className="flex items-center gap-2 px-4 py-3 bg-primary/5 border-b">
-                    <Bell className="h-4 w-4 text-primary" />
+                    <Bell className="h-4 w-4 md:h-6 md:w-6 text-primary" />
                     <span className="font-semibold">{t.broadcast?.title || "Announcements"}</span>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator className="m-0" />

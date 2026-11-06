@@ -97,7 +97,7 @@ export function PracticeStats() {
                         <CardTitle className="text-sm font-medium">
                             {t.stats?.totalPractices || "Total Practiced"}
                         </CardTitle>
-                        <BookOpen className="h-4 w-4 text-muted-foreground" />
+                        <BookOpen className="h-4 w-4 md:h-6 md:w-6 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">{stats.overallStats.total}</div>
@@ -108,7 +108,7 @@ export function PracticeStats() {
                         <CardTitle className="text-sm font-medium">
                             {t.stats?.correctRate || "Correct Rate"}
                         </CardTitle>
-                        <Target className="h-4 w-4 text-muted-foreground" />
+                        <Target className="h-4 w-4 md:h-6 md:w-6 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">{stats.overallStats.rate}%</div>
@@ -122,7 +122,7 @@ export function PracticeStats() {
                         <CardTitle className="text-sm font-medium">
                             {t.stats?.activeDays || "Active Days (6m)"}
                         </CardTitle>
-                        <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                        <TrendingUp className="h-4 w-4 md:h-6 md:w-6 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">{stats.activityStats.filter(d => d.total > 0).length}</div>

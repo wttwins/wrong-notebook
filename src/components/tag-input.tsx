@@ -125,7 +125,7 @@ export function TagInput({ value = [], onChange, placeholder = "Enter tags...", 
                             onClick={() => removeTag(tag)}
                             className="hover:text-destructive ml-1"
                         >
-                            <X className="h-3 w-3" />
+                            <X className="h-3 w-3 md:h-5 md:w-5" />
                         </button>
                     </Badge>
                 ))}

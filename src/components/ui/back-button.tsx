@@ -27,7 +27,7 @@ export function BackButton({ fallbackUrl, className }: BackButtonProps) {
             onClick={handleBack}
             className={className}
         >
-            <ArrowLeft className="h-5 w-5" />
+            <ArrowLeft className="h-5 w-5 md:h-6 md:w-6" />
         </Button>
     );
 }

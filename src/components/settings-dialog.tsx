@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
     Select,
     SelectContent,
@@ -28,6 +29,7 @@ import { UserManagement } from "@/components/admin/user-management";
 import { apiClient } from "@/lib/api-client";
 import { frontendLogger } from "@/lib/frontend-logger";
 import { AppConfig, UserProfile, UpdateUserProfileRequest, OpenAIInstance } from "@/types/api";
+import { buildAITestRequest } from "@/lib/ai/client-request";
 import { ModelSelector } from "@/components/ui/model-selector";
 import { PromptSettings } from "@/components/settings/prompt-settings";
 
@@ -491,12 +493,18 @@ export function SettingsDialog() {
     // 获取当前选中的 OpenAI 实例
     const getSelectedInstance = (): OpenAIInstance | undefined => {
         const instances = config.openai?.instances || [];
+        // 本地选中的实例优先；同步 effect 只负责首次回填，不能覆盖用户切换。
         const activeId = selectedInstanceId || config.openai?.activeInstanceId;
         return instances.find(i => i.id === activeId);
     };
 
-    // 更新当前选中的 OpenAI 实例属性
-    const updateOpenAIInstance = (key: keyof OpenAIInstance, value: string) => {
+    // 不在前端猜测端点能力；保留显式配置（尤其是 false）。
+    // 旧实例缺省时，UI 与普通 SDK 一样默认关闭思考，保存仍保留 undefined。
+    const isThinkingDisabled = (instance?: OpenAIInstance): boolean | undefined =>
+        instance?.disableThinking;
+
+    // 更新当前选中的 OpenAI 实例属性（支持字符串与布尔型开关）
+    const updateOpenAIInstance = (key: keyof OpenAIInstance, value: string | boolean) => {
         const instances = config.openai?.instances || [];
         const activeId = selectedInstanceId || config.openai?.activeInstanceId;
         const updatedInstances = instances.map(instance =>
@@ -522,6 +530,8 @@ export function SettingsDialog() {
             apiKey: '',
             baseUrl: 'https://api.openai.com/v1',
             model: 'gpt-4o',
+            // 新实例与普通 SDK 默认一致：关闭思考；用户仍可显式开启。
+            disableThinking: true,
         };
 
         setConfig(prev => ({
@@ -564,6 +574,8 @@ export function SettingsDialog() {
 
     // 同步 selectedInstanceId 与 config
     useEffect(() => {
+        // 仅首次回填本地选择，后续切换只更新 config.activeInstanceId，
+        // 避免 effect 反向覆盖用户选中的实例。
         if (config.openai?.activeInstanceId && !selectedInstanceId) {
             setSelectedInstanceId(config.openai.activeInstanceId);
         }
@@ -594,10 +606,17 @@ export function SettingsDialog() {
                 }
                 requestBody = {
                     provider: 'openai',
-                    apiKey: instance.apiKey,
-                    baseUrl: instance.baseUrl,
-                    model: instance.model,
-                    language: language
+                    ...buildAITestRequest({
+                        provider: 'openai',
+                        apiKey: instance.apiKey,
+                        baseUrl: instance.baseUrl,
+                        model: instance.model,
+                        language,
+                        instanceId: instance.id,
+                        useConfigured: false,
+                        disableThinking: instance.disableThinking,
+                        saved: instance,
+                    }),
                 };
             } else if (config.aiProvider === 'gemini') {
                 if (!config.gemini?.apiKey) {
@@ -607,10 +626,15 @@ export function SettingsDialog() {
                 }
                 requestBody = {
                     provider: 'gemini',
-                    apiKey: config.gemini.apiKey,
-                    baseUrl: config.gemini.baseUrl,
-                    model: config.gemini.model,
-                    language: language
+                    ...buildAITestRequest({
+                        provider: 'gemini',
+                        apiKey: config.gemini.apiKey,
+                        baseUrl: config.gemini.baseUrl,
+                        model: config.gemini.model,
+                        language,
+                        useConfigured: true,
+                        saved: config.gemini,
+                    }),
                 };
             } else if (config.aiProvider === 'azure') {
                 if (!config.azure?.apiKey || !config.azure?.endpoint || !config.azure?.deploymentName) {
@@ -620,12 +644,18 @@ export function SettingsDialog() {
                 }
                 requestBody = {
                     provider: 'azure',
-                    apiKey: config.azure.apiKey,
+                    ...buildAITestRequest({
+                        provider: 'azure',
+                        apiKey: config.azure.apiKey,
+                        baseUrl: undefined,
+                        model: config.azure.model,
+                        language,
+                        useConfigured: true,
+                        saved: config.azure,
+                    }),
                     endpoint: config.azure.endpoint,
                     deploymentName: config.azure.deploymentName,
                     apiVersion: config.azure.apiVersion,
-                    model: config.azure.model,
-                    language: language
                 };
             } else {
                 setTesting(false);
@@ -660,7 +690,7 @@ export function SettingsDialog() {
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
                 <Button variant="ghost" size="icon" className="rounded-full">
-                    <Settings className="h-5 w-5" />
+                    <Settings className="h-5 w-5 md:h-6 md:w-6" />
                     <span className="sr-only">{t.settings?.title || "Settings"}</span>
                 </Button>
             </DialogTrigger>
@@ -675,35 +705,35 @@ export function SettingsDialog() {
                 <Tabs defaultValue="general" className="w-full">
                     <TabsList className={`grid w-full grid-cols-4 ${(session?.user as any)?.role === 'admin' ? 'sm:grid-cols-7' : 'sm:grid-cols-4'} gap-1 h-auto`}>
                         <TabsTrigger value="general" className="px-2 sm:px-3">
-                            <Languages className="h-4 w-4 sm:mr-2" />
+                            <Languages className="h-4 w-4 md:h-6 md:w-6 sm:mr-2" />
                             <span className="hidden sm:inline">{t.settings?.tabs?.general || "General"}</span>
                         </TabsTrigger>
                         <TabsTrigger value="account" className="px-2 sm:px-3">
-                            <User className="h-4 w-4 sm:mr-2" />
+                            <User className="h-4 w-4 md:h-6 md:w-6 sm:mr-2" />
                             <span className="hidden sm:inline">{t.settings?.tabs?.account || "Account"}</span>
                         </TabsTrigger>
                         {(session?.user as any)?.role === 'admin' && (
                             <>
                                 <TabsTrigger value="ai" className="px-2 sm:px-3">
-                                    <Bot className="h-4 w-4 sm:mr-2" />
+                                    <Bot className="h-4 w-4 md:h-6 md:w-6 sm:mr-2" />
                                     <span className="hidden sm:inline">{t.settings?.tabs?.ai || "AI Provider"}</span>
                                 </TabsTrigger>
                                 <TabsTrigger value="prompts" className="px-2 sm:px-3">
-                                    <MessageSquareText className="h-4 w-4 sm:mr-2" />
+                                    <MessageSquareText className="h-4 w-4 md:h-6 md:w-6 sm:mr-2" />
                                     <span className="hidden sm:inline">{t.settings?.tabs?.prompts || "Prompts"}</span>
                                 </TabsTrigger>
                                 <TabsTrigger value="admin" className="px-2 sm:px-3">
-                                    <Shield className="h-4 w-4 sm:mr-2" />
+                                    <Shield className="h-4 w-4 md:h-6 md:w-6 sm:mr-2" />
                                     <span className="hidden sm:inline">{t.settings?.tabs?.admin || "User Management"}</span>
                                 </TabsTrigger>
                             </>
                         )}
                         <TabsTrigger value="danger" className="px-2 sm:px-3">
-                            <AlertTriangle className="h-4 w-4 sm:mr-2" />
+                            <AlertTriangle className="h-4 w-4 md:h-6 md:w-6 sm:mr-2" />
                             <span className="hidden sm:inline">{t.settings?.tabs?.danger || "Danger"}</span>
                         </TabsTrigger>
                         <TabsTrigger value="about" className="px-2 sm:px-3">
-                            <Info className="h-4 w-4 sm:mr-2" />
+                            <Info className="h-4 w-4 md:h-6 md:w-6 sm:mr-2" />
                             <span className="hidden sm:inline">{t.settings?.tabs?.about || "About"}</span>
                         </TabsTrigger>
                     </TabsList>
@@ -769,7 +799,7 @@ export function SettingsDialog() {
                             </div>
                         </div>
                         <Button onClick={handleSaveSettings} disabled={saving} className="w-full">
-                            {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            {saving && <Loader2 className="mr-2 h-4 w-4 md:h-6 md:w-6 animate-spin" />}
                             {t.settings?.save || "Save Settings"}
                         </Button>
                     </TabsContent>
@@ -850,9 +880,9 @@ export function SettingsDialog() {
                                                 tabIndex={-1}
                                             >
                                                 {showPassword ? (
-                                                    <EyeOff className="h-4 w-4 text-muted-foreground" />
+                                                    <EyeOff className="h-4 w-4 md:h-6 md:w-6 text-muted-foreground" />
                                                 ) : (
-                                                    <Eye className="h-4 w-4 text-muted-foreground" />
+                                                    <Eye className="h-4 w-4 md:h-6 md:w-6 text-muted-foreground" />
                                                 )}
                                             </Button>
                                         </div>
@@ -878,9 +908,9 @@ export function SettingsDialog() {
                                                     tabIndex={-1}
                                                 >
                                                     {showConfirmPassword ? (
-                                                        <EyeOff className="h-4 w-4 text-muted-foreground" />
+                                                        <EyeOff className="h-4 w-4 md:h-6 md:w-6 text-muted-foreground" />
                                                     ) : (
-                                                        <Eye className="h-4 w-4 text-muted-foreground" />
+                                                        <Eye className="h-4 w-4 md:h-6 md:w-6 text-muted-foreground" />
                                                     )}
                                                 </Button>
                                             </div>
@@ -889,7 +919,7 @@ export function SettingsDialog() {
                                 </div>
 
                                 <Button onClick={handleSaveProfile} disabled={profileSaving} className="w-full">
-                                    {profileSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                    {profileSaving && <Loader2 className="mr-2 h-4 w-4 md:h-6 md:w-6 animate-spin" />}
                                     {t.settings?.account?.update || "Update Profile"}
                                 </Button>
                             </div>
@@ -935,7 +965,7 @@ export function SettingsDialog() {
                                                     disabled={(config.openai?.instances?.length || 0) >= MAX_OPENAI_INSTANCES}
                                                     className="h-7 px-2 text-xs"
                                                 >
-                                                    <Plus className="h-3 w-3 mr-1" />
+                                                    <Plus className="h-3 w-3 md:h-5 md:w-5 mr-1" />
                                                     {t.settings?.ai?.addInstance || "Add"}
                                                 </Button>
                                             </div>
@@ -969,7 +999,7 @@ export function SettingsDialog() {
                                                             }}
                                                             className="h-10 w-10 text-destructive hover:text-destructive"
                                                         >
-                                                            <Trash2 className="h-4 w-4" />
+                                                            <Trash2 className="h-4 w-4 md:h-6 md:w-6" />
                                                         </Button>
                                                     )}
                                                 </div>
@@ -991,6 +1021,7 @@ export function SettingsDialog() {
                                                 <div className="space-y-2">
                                                     <Label>{t.settings?.ai?.instanceName || "Instance Name"} <span className="text-destructive">*</span></Label>
                                                     <Input
+                                                        id="instance-name"
                                                         value={getSelectedInstance()?.name || ''}
                                                         onChange={(e) => updateOpenAIInstance('name', e.target.value)}
                                                         placeholder="e.g. 智谱 GLM-4V"
@@ -1001,6 +1032,7 @@ export function SettingsDialog() {
                                                     <Label>API Key <span className="text-destructive">*</span></Label>
                                                     <div className="relative">
                                                         <Input
+                                                            id="api-key"
                                                             type={showApiKey ? "text" : "password"}
                                                             value={getSelectedInstance()?.apiKey || ''}
                                                             onChange={(e) => updateOpenAIInstance('apiKey', e.target.value)}
@@ -1015,9 +1047,9 @@ export function SettingsDialog() {
                                                             onClick={() => setShowApiKey(!showApiKey)}
                                                         >
                                                             {showApiKey ? (
-                                                                <EyeOff className="h-4 w-4 text-muted-foreground" />
+                                                                <EyeOff className="h-4 w-4 md:h-6 md:w-6 text-muted-foreground" />
                                                             ) : (
-                                                                <Eye className="h-4 w-4 text-muted-foreground" />
+                                                                <Eye className="h-4 w-4 md:h-6 md:w-6 text-muted-foreground" />
                                                             )}
                                                         </Button>
                                                     </div>
@@ -1025,6 +1057,7 @@ export function SettingsDialog() {
                                                 <div className="space-y-2 pt-4 border-t">
                                                     <Label>Base URL <span className="text-destructive">*</span></Label>
                                                     <Input
+                                                        id="base-url"
                                                         value={getSelectedInstance()?.baseUrl || ''}
                                                         onChange={(e) => updateOpenAIInstance('baseUrl', e.target.value)}
                                                         placeholder="https://api.openai.com/v1"
@@ -1036,8 +1069,27 @@ export function SettingsDialog() {
                                                     apiKey={getSelectedInstance()?.apiKey}
                                                     baseUrl={getSelectedInstance()?.baseUrl}
                                                     currentModel={getSelectedInstance()?.model}
+                                                    instanceId={getSelectedInstance()?.id}
+                                                    useConfigured={false}
                                                     onModelChange={(model) => updateOpenAIInstance('model', model)}
                                                 />
+                                                <div className="pt-4 border-t">
+                                                    <div className="flex items-start justify-between gap-4">
+                                                        <div className="space-y-1">
+                                                            <Label htmlFor="disable-thinking" className="cursor-pointer">
+                                                                {t.settings?.ai?.disableThinking || '关闭思考模式'}
+                                                            </Label>
+                                                            <p className="text-xs text-muted-foreground leading-relaxed">
+                                                                {t.settings?.ai?.disableThinkingHint || ''}
+                                                            </p>
+                                                        </div>
+                                                        <Switch
+                                                            id="disable-thinking"
+                                                            checked={isThinkingDisabled(getSelectedInstance()) ?? true}
+                                                            onCheckedChange={(checked) => updateOpenAIInstance('disableThinking', checked)}
+                                                        />
+                                                    </div>
+                                                </div>
                                             </div>
                                         )}
                                     </div>
@@ -1049,6 +1101,7 @@ export function SettingsDialog() {
                                             <Label>API Key</Label>
                                             <div className="relative">
                                                 <Input
+                                                    id="api-key"
                                                     type={showApiKey ? "text" : "password"}
                                                     value={config.gemini?.apiKey || ''}
                                                     onChange={(e) => updateConfig('gemini', 'apiKey', e.target.value)}
@@ -1063,9 +1116,9 @@ export function SettingsDialog() {
                                                     onClick={() => setShowApiKey(!showApiKey)}
                                                 >
                                                     {showApiKey ? (
-                                                        <EyeOff className="h-4 w-4 text-muted-foreground" />
+                                                        <EyeOff className="h-4 w-4 md:h-6 md:w-6 text-muted-foreground" />
                                                     ) : (
-                                                        <Eye className="h-4 w-4 text-muted-foreground" />
+                                                        <Eye className="h-4 w-4 md:h-6 md:w-6 text-muted-foreground" />
                                                     )}
                                                 </Button>
                                             </div>
@@ -1073,6 +1126,7 @@ export function SettingsDialog() {
                                         <div className="space-y-2">
                                             <Label>Base URL (Optional)</Label>
                                             <Input
+                                                id="base-url"
                                                 value={config.gemini?.baseUrl || ''}
                                                 onChange={(e) => updateConfig('gemini', 'baseUrl', e.target.value)}
                                                 placeholder="https://generativelanguage.googleapis.com"
@@ -1083,6 +1137,7 @@ export function SettingsDialog() {
                                             apiKey={config.gemini?.apiKey}
                                             baseUrl={config.gemini?.baseUrl}
                                             currentModel={config.gemini?.model}
+                                            useConfigured={true}
                                             onModelChange={(model) => updateConfig('gemini', 'model', model)}
                                         />
                                     </div>
@@ -1126,9 +1181,9 @@ export function SettingsDialog() {
                                                     onClick={() => setShowApiKey(!showApiKey)}
                                                 >
                                                     {showApiKey ? (
-                                                        <EyeOff className="h-4 w-4 text-muted-foreground" />
+                                                        <EyeOff className="h-4 w-4 md:h-6 md:w-6 text-muted-foreground" />
                                                     ) : (
-                                                        <Eye className="h-4 w-4 text-muted-foreground" />
+                                                        <Eye className="h-4 w-4 md:h-6 md:w-6 text-muted-foreground" />
                                                     )}
                                                 </Button>
                                             </div>
@@ -1162,14 +1217,14 @@ export function SettingsDialog() {
                                             className="flex-1"
                                         >
                                             {testing ? (
-                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                <Loader2 className="mr-2 h-4 w-4 md:h-6 md:w-6 animate-spin" />
                                             ) : (
-                                                <Zap className="mr-2 h-4 w-4" />
+                                                <Zap className="mr-2 h-4 w-4 md:h-6 md:w-6" />
                                             )}
                                             {testing ? (t.settings?.ai?.testing || "测试中...") : (t.settings?.ai?.testConnection || "测试连接")}
                                         </Button>
                                         <Button onClick={handleSaveSettings} disabled={saving || testing} className="flex-1">
-                                            {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                            {saving && <Loader2 className="mr-2 h-4 w-4 md:h-6 md:w-6 animate-spin" />}
                                             {t.settings?.ai?.save || "Save AI Settings"}
                                         </Button>
                                     </div>
@@ -1180,13 +1235,13 @@ export function SettingsDialog() {
                                             <div className="flex items-center gap-2 font-medium mb-2">
                                                 {testResult.success ? (
                                                     <>
-                                                        <CheckCircle2 className="h-4 w-4 text-green-600" />
+                                                        <CheckCircle2 className="h-4 w-4 md:h-6 md:w-6 text-green-600" />
                                                         <span className="text-green-700">{t.settings?.ai?.testSuccess || "连接成功"}</span>
                                                         {testResult.modelInfo && <span className="text-green-600 text-xs">({testResult.modelInfo})</span>}
                                                     </>
                                                 ) : (
                                                     <>
-                                                        <XCircle className="h-4 w-4 text-red-600" />
+                                                        <XCircle className="h-4 w-4 md:h-6 md:w-6 text-red-600" />
                                                         <span className="text-red-700">{t.settings?.ai?.testFailed || "连接失败"}</span>
                                                     </>
                                                 )}
@@ -1229,7 +1284,7 @@ export function SettingsDialog() {
                     <TabsContent value="prompts" className="space-y-4 py-4">
                         <PromptSettings config={config} onUpdate={updatePrompts} />
                         <Button onClick={handleSaveSettings} disabled={saving} className="w-full">
-                            {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            {saving && <Loader2 className="mr-2 h-4 w-4 md:h-6 md:w-6 animate-spin" />}
                             {t.settings?.prompts?.save || "Save Prompt Settings"}
                         </Button>
                     </TabsContent>
@@ -1246,7 +1301,7 @@ export function SettingsDialog() {
                                         router.push("/admin")
                                     }}
                                 >
-                                    <BarChart3 className="h-4 w-4" />
+                                    <BarChart3 className="h-4 w-4 md:h-6 md:w-6" />
                                     {t.admin?.dashboard?.title || "Admin Dashboard"}
                                 </Button>
                                 <div className="border-t pt-4">
@@ -1280,9 +1335,9 @@ export function SettingsDialog() {
                                                 className="bg-blue-100 hover:bg-blue-200 text-blue-900 border-blue-300"
                                             >
                                                 {exporting ? (
-                                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                    <Loader2 className="mr-2 h-4 w-4 md:h-6 md:w-6 animate-spin" />
                                                 ) : (
-                                                    <Download className="mr-2 h-4 w-4" />
+                                                    <Download className="mr-2 h-4 w-4 md:h-6 md:w-6" />
                                                 )}
                                                 {t.settings?.exportData || "Export"}
                                             </Button>
@@ -1295,9 +1350,9 @@ export function SettingsDialog() {
                                                     className="bg-orange-100 hover:bg-orange-200 text-orange-900 border-orange-300"
                                                 >
                                                     {exporting ? (
-                                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                        <Loader2 className="mr-2 h-4 w-4 md:h-6 md:w-6 animate-spin" />
                                                     ) : (
-                                                        <Download className="mr-2 h-4 w-4" />
+                                                        <Download className="mr-2 h-4 w-4 md:h-6 md:w-6" />
                                                     )}
                                                     {t.settings?.exportAllData || "Export All"}
                                                 </Button>
@@ -1332,9 +1387,9 @@ export function SettingsDialog() {
                                                 className="bg-blue-100 hover:bg-blue-200 text-blue-900 border-blue-300"
                                             >
                                                 {importing ? (
-                                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                    <Loader2 className="mr-2 h-4 w-4 md:h-6 md:w-6 animate-spin" />
                                                 ) : (
-                                                    <Upload className="mr-2 h-4 w-4" />
+                                                    <Upload className="mr-2 h-4 w-4 md:h-6 md:w-6" />
                                                 )}
                                                 {selectedFileName || t.settings?.selectFile || "Select File"}
                                             </Button>
@@ -1347,9 +1402,9 @@ export function SettingsDialog() {
                                                     className="bg-green-100 hover:bg-green-200 text-green-900 border-green-300"
                                                 >
                                                     {importing ? (
-                                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                        <Loader2 className="mr-2 h-4 w-4 md:h-6 md:w-6 animate-spin" />
                                                     ) : (
-                                                        <CheckCircle2 className="mr-2 h-4 w-4" />
+                                                        <CheckCircle2 className="mr-2 h-4 w-4 md:h-6 md:w-6" />
                                                     )}
                                                     {t.settings?.importData || "Import"}
                                                 </Button>
@@ -1363,9 +1418,9 @@ export function SettingsDialog() {
                                                     className="bg-orange-100 hover:bg-orange-200 text-orange-900 border-orange-300"
                                                 >
                                                     {importing ? (
-                                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                        <Loader2 className="mr-2 h-4 w-4 md:h-6 md:w-6 animate-spin" />
                                                     ) : (
-                                                        <CheckCircle2 className="mr-2 h-4 w-4" />
+                                                        <CheckCircle2 className="mr-2 h-4 w-4 md:h-6 md:w-6" />
                                                     )}
                                                     {t.settings?.importAllData || "Import All"}
                                                 </Button>
@@ -1384,7 +1439,7 @@ export function SettingsDialog() {
                                     <div className="flex items-center justify-between">
                                         <div className="flex flex-col">
                                             <span className="text-sm text-blue-900 font-bold flex items-center gap-2">
-                                                <RefreshCw className="h-4 w-4" />
+                                                <RefreshCw className="h-4 w-4 md:h-6 md:w-6" />
                                                 {t.settings?.migrateTags || "Migrate Tags"}
                                             </span>
                                         </div>
@@ -1396,9 +1451,9 @@ export function SettingsDialog() {
                                             className="bg-blue-100 hover:bg-blue-200 text-blue-900 border-blue-300"
                                         >
                                             {migratingTags ? (
-                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                                <Loader2 className="h-4 w-4 md:h-6 md:w-6 animate-spin" />
                                             ) : (
-                                                <RefreshCw className="h-4 w-4" />
+                                                <RefreshCw className="h-4 w-4 md:h-6 md:w-6" />
                                             )}
                                         </Button>
                                     </div>
@@ -1421,9 +1476,9 @@ export function SettingsDialog() {
                                         disabled={clearingPractice}
                                     >
                                         {clearingPractice ? (
-                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                            <Loader2 className="h-4 w-4 md:h-6 md:w-6 animate-spin" />
                                         ) : (
-                                            <Trash2 className="h-4 w-4" />
+                                            <Trash2 className="h-4 w-4 md:h-6 md:w-6" />
                                         )}
                                     </Button>
                                 </div>
@@ -1445,9 +1500,9 @@ export function SettingsDialog() {
                                         disabled={clearingError}
                                     >
                                         {clearingError ? (
-                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                            <Loader2 className="h-4 w-4 md:h-6 md:w-6 animate-spin" />
                                         ) : (
-                                            <Trash2 className="h-4 w-4" />
+                                            <Trash2 className="h-4 w-4 md:h-6 md:w-6" />
                                         )}
                                     </Button>
                                 </div>
@@ -1464,7 +1519,7 @@ export function SettingsDialog() {
                                         <div className="flex items-center justify-between">
                                             <div className="flex flex-col">
                                                 <span className="text-sm text-red-900 font-bold flex items-center gap-2">
-                                                    <AlertTriangle className="h-4 w-4" />
+                                                    <AlertTriangle className="h-4 w-4 md:h-6 md:w-6" />
                                                     {t.settings?.systemReset || "System Initialization"}
                                                 </span>
                                             </div>
@@ -1476,9 +1531,9 @@ export function SettingsDialog() {
                                                 className="bg-red-700 hover:bg-red-800"
                                             >
                                                 {systemResetting ? (
-                                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                                    <Loader2 className="h-4 w-4 md:h-6 md:w-6 animate-spin" />
                                                 ) : (
-                                                    <Trash2 className="h-4 w-4" />
+                                                    <Trash2 className="h-4 w-4 md:h-6 md:w-6" />
                                                 )}
                                             </Button>
                                         </div>
@@ -1502,32 +1557,32 @@ export function SettingsDialog() {
                             </div>
 
                             <div className="flex items-center space-x-2 text-sm text-muted-foreground border px-4 py-2 rounded-full bg-background">
-                                <Info className="h-4 w-4" />
+                                <Info className="h-4 w-4 md:h-6 md:w-6" />
                                 <span>{t.settings?.about?.version || "Version"}: v{version || "unknown"}</span>
                             </div>
 
                             <div className="flex flex-col sm:flex-row flex-wrap justify-center gap-4 w-full sm:w-auto px-4 sm:px-0">
                                 <Button variant="outline" asChild className="gap-2 w-full sm:w-auto">
                                     <a href="https://github.com/wttwins/wrong-notebook" target="_blank" rel="noopener noreferrer">
-                                        <Github className="h-4 w-4" />
+                                        <Github className="h-4 w-4 md:h-6 md:w-6" />
                                         {t.settings?.about?.github || "GitHub Repository"}
-                                        <ExternalLink className="h-3 w-3 ml-1 opacity-50" />
+                                        <ExternalLink className="h-3 w-3 md:h-5 md:w-5 ml-1 opacity-50" />
                                     </a>
                                 </Button>
 
                                 <Button variant="outline" asChild className="gap-2 w-full sm:w-auto">
                                     <a href="https://github.com/wttwins/wrong-notebook/releases" target="_blank" rel="noopener noreferrer">
-                                        <ScrollText className="h-4 w-4" />
+                                        <ScrollText className="h-4 w-4 md:h-6 md:w-6" />
                                         {t.settings?.about?.releaseNotes || "Release Notes"}
-                                        <ExternalLink className="h-3 w-3 ml-1 opacity-50" />
+                                        <ExternalLink className="h-3 w-3 md:h-5 md:w-5 ml-1 opacity-50" />
                                     </a>
                                 </Button>
 
                                 <Button variant="outline" asChild className="gap-2 w-full sm:w-auto">
                                     <a href="https://github.com/wttwins/wrong-notebook/issues" target="_blank" rel="noopener noreferrer">
-                                        <MessageSquareText className="h-4 w-4" />
+                                        <MessageSquareText className="h-4 w-4 md:h-6 md:w-6" />
                                         {t.settings?.about?.feedback || "Feedback"}
-                                        <ExternalLink className="h-3 w-3 ml-1 opacity-50" />
+                                        <ExternalLink className="h-3 w-3 md:h-5 md:w-5 ml-1 opacity-50" />
                                     </a>
                                 </Button>
                             </div>

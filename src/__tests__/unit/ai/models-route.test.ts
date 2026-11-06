@@ -18,6 +18,25 @@ vi.mock('@/lib/logger', () => ({
     })),
 }));
 
+// Mock next-auth：该路由要求登录（防止被用作 SSRF 跳板）
+// 这些用例会传入自定义 baseUrl，需要管理员身份才被允许，
+// 因此这里用 admin 角色（权限相关的用例见 integration/ai-models.test.ts）。
+vi.mock('next-auth', () => ({
+    getServerSession: vi.fn(() => Promise.resolve({
+        user: { id: 'admin-id', email: 'admin@localhost', role: 'admin' },
+        expires: '2025-12-31',
+    })),
+}));
+
+vi.mock('@/lib/auth', () => ({
+    authOptions: {},
+}));
+
+// No real config-file reads: saved-target regression fixtures live in ai-runtime.test.ts.
+vi.mock('@/lib/config', () => ({
+    getAppConfig: vi.fn(() => ({ aiProvider: 'openai', openai: { instances: [] } })),
+}));
+
 const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
 
@@ -149,7 +168,8 @@ describe('GET /api/ai/models - Gemini provider', () => {
 
         expect(res.status).toBe(200);
         expect(body.models).toEqual([]);
-        expect(body.error).toContain('Gemini API error');
+        // 出于安全考虑，不再把上游/内部的原始错误信息回传给客户端
+        expect(body.error).toBe('Failed to fetch models');
     });
 
     it('缺少 apiKey 时应返回 400', async () => {
@@ -203,6 +223,7 @@ describe('GET /api/ai/models - OpenAI provider', () => {
 
         expect(res.status).toBe(200);
         expect(body.models).toEqual([]);
-        expect(body.error).toContain('API error');
+        // 出于安全考虑，不再把上游/内部的原始错误信息回传给客户端
+        expect(body.error).toBe('Failed to fetch models');
     });
 });

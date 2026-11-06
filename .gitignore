@@ -69,3 +69,23 @@ upload_test_output*.txt
 # data
 /data/
 .next-prebuilt/
+
+# 本机专用：部署/运维辅助脚本与产物
+# 这些文件含本机路径、主机地址或默认口令，不应进入仓库
+/.set-password.js
+/start-dev.cmd
+/start-tunnel.cmd
+/stop-all.cmd
+/*.bak
+/运维手册.md
+/releases/
+/logs/
+
+# 临时调试脚本
+/.webkit-login.js
+/.mobile-verify.js
+/.iphone-test.js
+/.sec-verify.js
+/.smoke.js
+/.diag-ipad.js
+/scripts/cf-url-watch.ps1

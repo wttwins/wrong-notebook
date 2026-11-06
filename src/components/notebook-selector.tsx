@@ -43,7 +43,7 @@ export function NotebookSelector({ value, onChange, className }: NotebookSelecto
         <Select value={value} onValueChange={onChange}>
             <SelectTrigger className={className}>
                 <div className="flex items-center gap-2">
-                    <BookOpen className="h-4 w-4 text-muted-foreground" />
+                    <BookOpen className="h-4 w-4 md:h-6 md:w-6 text-muted-foreground" />
                     <SelectValue placeholder={t.notebooks?.selector?.placeholder || "Select Notebook"} />
                 </div>
             </SelectTrigger>

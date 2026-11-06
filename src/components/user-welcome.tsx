@@ -22,7 +22,7 @@ export function UserWelcome() {
 
     return (
         <div className="flex items-center gap-2 bg-card p-4 rounded-lg border shadow-sm animate-in fade-in slide-in-from-top-4 duration-700">
-            <User className="h-5 w-5 text-primary" />
+            <User className="h-5 w-5 md:h-6 md:w-6 text-primary" />
             <span className="font-medium">
                 {t.common.welcome || 'Welcome back, '}
                 {userName}

@@ -5,6 +5,7 @@ import { OpenAIProvider } from '@/lib/ai/openai-provider';
 import { GeminiProvider } from '@/lib/ai/gemini-provider';
 import { AzureOpenAIProvider } from '@/lib/ai/azure-provider';
 import { createLogger } from '@/lib/logger';
+import { resolveAIRequestTarget, type AIRequest } from '@/lib/ai/request-target';
 
 const logger = createLogger('api:ai:test');
 
@@ -69,18 +70,7 @@ function parseErrorCode(error: unknown): string {
     return 'AI_UNKNOWN_ERROR';
 }
 
-export interface AITestRequest {
-    provider: 'openai' | 'gemini' | 'azure';
-    apiKey: string;
-    baseUrl?: string;
-    model?: string;
-    // Azure 特有
-    endpoint?: string;
-    deploymentName?: string;
-    apiVersion?: string;
-    // 语言
-    language?: 'zh' | 'en';
-}
+export type AITestRequest = AIRequest;
 
 export interface AITestResponse {
     success: boolean;
@@ -99,14 +89,22 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const body: AITestRequest = await request.json();
-        const { provider, apiKey, baseUrl, model, endpoint, deploymentName, apiVersion, language = 'zh' } = body;
-
-        if (!provider || !apiKey) {
-            return NextResponse.json({ error: 'Missing provider or apiKey' }, { status: 400 });
+        let body: unknown;
+        try {
+            body = await request.json();
+        } catch {
+            return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
         }
+        // 严格校验当前表单字段；已保存目标只借出匹配的地址/credential 对。
+        // Azure 的唯一实际目标是 endpoint，不接受可掩盖它的 baseUrl。
+        const isAdmin = (session.user as { role?: string }).role === 'admin';
+        const resolved = resolveAIRequestTarget(body, isAdmin);
+        if (!resolved.ok) {
+            return NextResponse.json({ error: resolved.error }, { status: resolved.status });
+        }
+        const { provider, apiKey, baseUrl, model, endpoint, deploymentName, apiVersion, language, disableThinking } = resolved.target;
 
-        logger.info({ provider, model, baseUrl: baseUrl || endpoint }, 'AI 连接测试开始');
+        logger.info({ provider, model, trustedTarget: resolved.target.trusted }, 'AI 连接测试开始');
 
         let textSupport = false;
         let visionSupport = false;
@@ -124,7 +122,7 @@ export async function POST(request: NextRequest) {
         // 测试 1: 视觉（多模态）能力
         try {
             if (provider === 'openai') {
-                const openai = new OpenAIProvider({ apiKey, baseUrl, model });
+                const openai = new OpenAIProvider({ apiKey, baseUrl, model, disableThinking });
                 const result = await openai.analyzeImage(TEST_IMAGE_BASE64, TEST_IMAGE_MIME, language);
                 if (result.questionText || result.analysis) {
                     // 视觉成功 → 文本和视觉都支持，一步完成
@@ -179,7 +177,7 @@ export async function POST(request: NextRequest) {
         if (!textSupport && !textError) {
             try {
                 if (provider === 'openai') {
-                    const openai = new OpenAIProvider({ apiKey, baseUrl, model });
+                    const openai = new OpenAIProvider({ apiKey, baseUrl, model, disableThinking });
                     const result = await openai.generateSimilarQuestion(
                         '1+1=?',
                         ['基础算术'],
@@ -243,7 +241,7 @@ export async function POST(request: NextRequest) {
     } catch (error) {
         logger.error({ error }, 'AI 测试 API 异常');
         return NextResponse.json(
-            { error: error instanceof Error ? error.message : 'Internal server error' },
+            { error: 'Internal server error' },
             { status: 500 }
         );
     }

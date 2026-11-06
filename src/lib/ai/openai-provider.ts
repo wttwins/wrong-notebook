@@ -9,6 +9,23 @@ import { normalizeMistakeStatusForSave } from '../mistake-status';
 
 const logger = createLogger('ai:openai');
 
+/**
+ * 思考模式默认策略：
+ * - 显式 true/false 永远优先，与端点是否被识别无关；
+ * - 普通三操作和 LongCat 图片分支保留旧默认 disabled；
+ * - GeoGebra 未显式选择时仅对已识别端点默认 disabled，未知端点不发字段。
+ */
+const THINKING_CAPABLE_HOSTS = (process.env.THINKING_CAPABLE_HOSTS || '')
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+
+function isThinkingCapableEndpoint(baseUrl?: string): boolean {
+    if (!baseUrl) return false;
+    const lower = baseUrl.toLowerCase();
+    return THINKING_CAPABLE_HOSTS.some((host) => lower.includes(host));
+}
+
 type OpenAIUserContent = string | Array<
     { type: "text"; text: string } |
     { type: "image_url"; image_url: { url: string } }
@@ -20,6 +37,9 @@ export class OpenAIProvider implements AIService {
     private baseURL: string;
     private apiKey: string;
     private isLongCat: boolean;
+    private disableThinking: boolean;
+    private explicitDisableThinking: boolean | undefined;
+    private isThinkingCapable: boolean;
 
     constructor(config?: AIConfig) {
         const apiKey = config?.apiKey;
@@ -42,12 +62,45 @@ export class OpenAIProvider implements AIService {
         this.apiKey = apiKey;
         this.isLongCat = this.baseURL.includes('longcat.chat');
 
+        // 先保存用户显式选择，再保存解析后的实际默认值。
+        this.isThinkingCapable = isThinkingCapableEndpoint(this.baseURL);
+        this.explicitDisableThinking = config?.disableThinking;
+        this.disableThinking = config?.disableThinking ?? this.isThinkingCapable;
+
         logger.info({
             provider: 'OpenAI',
             model: this.model,
             baseURL: this.baseURL,
-            apiKeyPrefix: apiKey.substring(0, 8) + '...'
+            apiKeyPrefix: apiKey.substring(0, 8) + '...',
+            disableThinking: this.disableThinking,
+            thinkingCapableEndpoint: this.isThinkingCapable,
         }, 'AI Provider initialized');
+    }
+
+    /**
+     * 构造控制思考模式的请求参数。
+     *
+     * 部分推理型端点通过顶层 `thinking` 字段控制（OpenAI 官方接口无此字段，
+     * 但 SDK 会原样透传未知的顶层参数）。
+     * 关闭思考可避免思维链吃满 max_tokens 导致 content 为空。
+     */
+    private thinkingParam(legacyDefaultDisabled = false): Record<string, unknown> {
+        if (this.explicitDisableThinking !== undefined) {
+            return { thinking: { type: this.explicitDisableThinking ? 'disabled' : 'enabled' } };
+        }
+        // 按操作保留 main 的默认行为，而不是用主机识别覆盖旧的 disabled。
+        if (legacyDefaultDisabled || this.disableThinking) {
+            return { thinking: { type: 'disabled' } };
+        }
+        return {};
+    }
+
+    /**
+     * 合并请求参数。思考模式参数需要在运行时按配置注入，
+     * 而 OpenAI SDK 的请求类型不允许未知顶层字段，故此处统一断言。
+     */
+    private withThinking<T extends object>(params: T, legacyDefaultDisabled = true): T {
+        return { ...params, ...this.thinkingParam(legacyDefaultDisabled) } as T;
     }
 
     private adaptMessagesForLongCat(messages: Array<{ role: string; content: any }>): Array<{ role: string; content: any }> {
@@ -213,7 +266,7 @@ export class OpenAIProvider implements AIService {
                         ],
                     },
                 ],
-                max_tokens: 32768, ...({ thinking: { type: "disabled" } } as any),
+                max_tokens: 32768,
             };
 
             logger.box('📤 API Request (发送给 AI 的原始请求)', JSON.stringify(requestParamsForLog, null, 2));
@@ -246,7 +299,8 @@ export class OpenAIProvider implements AIService {
                     body: JSON.stringify({
                         model: this.model,
                         messages,
-                        max_tokens: 32768, ...({ thinking: { type: "disabled" } } as any),
+                        ...this.thinkingParam(true),
+                        max_tokens: 32768,
                     }),
                 });
 
@@ -258,28 +312,30 @@ export class OpenAIProvider implements AIService {
 
                 response = await res.json();
             } else {
-                response = await this.openai.chat.completions.create({
-                    model: this.model,
-                    messages: [
-                        {
-                            role: "system",
-                            content: systemPrompt
-                        },
-                        {
-                            role: "user",
-                            content: [
-                                {
-                                    type: "image_url",
-                                    image_url: {
-                                        url: `data:${mimeType};base64,${imageBase64}`,
+                response = await this.openai.chat.completions.create(
+                    this.withThinking({
+                        model: this.model,
+                        messages: [
+                            {
+                                role: "system",
+                                content: systemPrompt
+                            },
+                            {
+                                role: "user",
+                                content: [
+                                    {
+                                        type: "image_url",
+                                        image_url: {
+                                            url: `data:${mimeType};base64,${imageBase64}`,
+                                        },
                                     },
-                                },
-                            ],
-                        },
-                    ],
-                    // response_format: { type: "json_object" }, // Removing to improve compatibility with 3rd party providers
-                    max_tokens: 32768, ...({ thinking: { type: "disabled" } } as any),
-                });
+                                ],
+                            },
+                        ],
+                        // response_format: { type: "json_object" }, // Removing to improve compatibility with 3rd party providers
+                        max_tokens: 32768,
+                    }) as any
+                );
             }
 
             logger.box('📦 Full API Response', JSON.stringify(response, null, 2));
@@ -331,15 +387,17 @@ export class OpenAIProvider implements AIService {
         logger.box('📝 User Prompt', userPrompt);
 
         try {
-            const response = await this.openai.chat.completions.create({
-                model: this.model,
-                messages: [
-                    { role: "system", content: systemPrompt },
-                    { role: "user", content: userPrompt },
-                ],
-                // response_format: { type: "json_object" }, // Removing to improve compatibility with 3rd party providers
-                max_tokens: 32768, ...({ thinking: { type: "disabled" } } as any),
-            });
+            const response = await this.openai.chat.completions.create(
+                this.withThinking({
+                    model: this.model,
+                    messages: [
+                        { role: "system", content: systemPrompt },
+                        { role: "user", content: userPrompt },
+                    ],
+                    // response_format: { type: "json_object" }, // Removing to improve compatibility with 3rd party providers
+                    max_tokens: 32768,
+                }) as any
+            );
 
             const text = response.choices[0]?.message?.content || "";
 
@@ -398,18 +456,20 @@ export class OpenAIProvider implements AIService {
                     { role: "system", content: prompt.substring(0, 200) + "..." },
                     { role: "user", content: typeof userContent === 'string' ? userContent : "[包含图片的多模态消息]" }
                 ],
-                max_tokens: 8192
+                max_tokens: 32768
             };
             logger.debug({ requestParams }, 'Request parameters');
 
-            const response = await this.openai.chat.completions.create({
-                model: this.model,
-                messages: [
-                    { role: "system", content: prompt },
-                    { role: "user", content: userContent }
-                ],
-                max_tokens: 32768, ...({ thinking: { type: "disabled" } } as any),
-            });
+            const response = await this.openai.chat.completions.create(
+                this.withThinking({
+                    model: this.model,
+                    messages: [
+                        { role: "system", content: prompt },
+                        { role: "user", content: userContent }
+                    ],
+                    max_tokens: 32768,
+                }) as any
+            );
 
             logger.debug({ response: JSON.stringify(response) }, 'Full API response');
 
@@ -458,14 +518,19 @@ export class OpenAIProvider implements AIService {
         }, 'GeoGebra Analysis Request');
 
         try {
-            const response = await this.openai.chat.completions.create({
-                model: this.model,
-                messages: [
-                    { role: "system", content: prompt },
-                    { role: "user", content: "请分析上述题目并生成 GeoGebra 演示命令。" }
-                ],
-                max_tokens: 4096,
-            });
+            const response = await this.openai.chat.completions.create(
+                this.withThinking({
+                    model: this.model,
+                    messages: [
+                        { role: "system", content: prompt },
+                        { role: "user", content: "请分析上述题目并生成 GeoGebra 演示命令。" }
+                    ],
+                    // 该任务需要输出较大的 JSON（多条 GeoGebra 命令）；
+                    // PR 的 8192 预算保留，但不得扩散到其他任务。
+                    // 保留旧未知端点无 thinking 字段；显式选择仍优先于自动识别。
+                    max_tokens: 8192,
+                }, false) as any
+            );
 
             const text = response.choices[0]?.message?.content || '';
             logger.debug({ rawResponse: text }, 'GeoGebra AI raw response');

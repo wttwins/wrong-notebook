@@ -100,15 +100,15 @@ export default function NotebooksPage() {
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                         <Button onClick={() => setDialogOpen(true)} size="sm" className="hidden sm:flex">
-                            <Plus className="mr-2 h-4 w-4" />
+                            <Plus className="mr-2 h-4 w-4 md:h-6 md:w-6" />
                             {t.notebooks?.create || "New Notebook"}
                         </Button>
                         <Button onClick={() => setDialogOpen(true)} size="icon" className="sm:hidden">
-                            <Plus className="h-4 w-4" />
+                            <Plus className="h-4 w-4 md:h-6 md:w-6" />
                         </Button>
                         <Link href="/">
                             <Button variant="ghost" size="icon">
-                                <House className="h-5 w-5" />
+                                <House className="h-5 w-5 md:h-6 md:w-6" />
                             </Button>
                         </Link>
                     </div>
@@ -120,7 +120,7 @@ export default function NotebooksPage() {
                             {t.notebooks?.empty || "No notebooks yet."}
                         </p>
                         <Button onClick={() => setDialogOpen(true)}>
-                            <Plus className="mr-2 h-4 w-4" />
+                            <Plus className="mr-2 h-4 w-4 md:h-6 md:w-6" />
                             {t.notebooks?.createFirst || "Create Notebook"}
                         </Button>
                     </div>

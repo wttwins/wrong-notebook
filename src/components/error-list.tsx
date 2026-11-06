@@ -232,7 +232,7 @@ export function ErrorList({ subjectId, subjectName }: ErrorListProps = {}) {
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row gap-4">
                 <div className="relative w-full sm:flex-1">
-                    <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Search className="absolute left-3 top-3 h-4 w-4 md:h-6 md:w-6 text-muted-foreground" />
                     <Input
                         placeholder={t.notebook.search}
                         className="pl-9"
@@ -243,9 +243,9 @@ export function ErrorList({ subjectId, subjectName }: ErrorListProps = {}) {
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                         <Button variant="outline">
-                            <Filter className="mr-2 h-4 w-4" />
+                            <Filter className="mr-2 h-4 w-4 md:h-6 md:w-6" />
                             {t.notebook.filter}
-                            <ChevronDown className="ml-2 h-4 w-4" />
+                            <ChevronDown className="ml-2 h-4 w-4 md:h-6 md:w-6" />
                         </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-48">
@@ -275,14 +275,14 @@ export function ErrorList({ subjectId, subjectName }: ErrorListProps = {}) {
                     </DropdownMenuContent>
                 </DropdownMenu>
                 <Button variant="outline" onClick={handleExportPrint}>
-                    <Printer className="mr-2 h-4 w-4" />
+                    <Printer className="mr-2 h-4 w-4 md:h-6 md:w-6" />
                     {t.notebook?.exportPrint || "导出打印"}
                 </Button>
                 <Button
                     variant={isSelectMode ? "secondary" : "outline"}
                     onClick={toggleSelectMode}
                 >
-                    <ListChecks className="mr-2 h-4 w-4" />
+                    <ListChecks className="mr-2 h-4 w-4 md:h-6 md:w-6" />
                     {isSelectMode ? (t.notebook?.cancelSelect || "取消") : (t.notebook?.selectMode || "多选")}
                 </Button>
             </div>
@@ -364,7 +364,7 @@ export function ErrorList({ subjectId, subjectName }: ErrorListProps = {}) {
                                 >
                                     <Checkbox
                                         checked={selectedIds.has(item.id)}
-                                        className="h-5 w-5 border-2 bg-background shadow-sm"
+                                        className="h-5 w-5 md:h-6 md:w-6 border-2 bg-background shadow-sm"
                                     />
                                 </div>
                             )}
@@ -378,11 +378,11 @@ export function ErrorList({ subjectId, subjectName }: ErrorListProps = {}) {
                                             >
                                                 {item.masteryLevel > 0 ? (
                                                     <span className="flex items-center gap-1">
-                                                        <CheckCircle className="h-3 w-3" /> {t.notebook.mastered}
+                                                        <CheckCircle className="h-3 w-3 md:h-5 md:w-5" /> {t.notebook.mastered}
                                                     </span>
                                                 ) : (
                                                     <span className="flex items-center gap-1">
-                                                        <Clock className="h-3 w-3" /> {t.notebook.review}
+                                                        <Clock className="h-3 w-3 md:h-5 md:w-5" /> {t.notebook.review}
                                                     </span>
                                                 )}
                                             </Badge>
@@ -468,7 +468,7 @@ export function ErrorList({ subjectId, subjectName }: ErrorListProps = {}) {
                                 variant="outline"
                                 onClick={toggleSelectMode}
                             >
-                                <X className="mr-2 h-4 w-4" />
+                                <X className="mr-2 h-4 w-4 md:h-6 md:w-6" />
                                 {t.notebook?.cancelSelect || "取消"}
                             </Button>
                             <Button
@@ -476,7 +476,7 @@ export function ErrorList({ subjectId, subjectName }: ErrorListProps = {}) {
                                 onClick={handleBatchDelete}
                                 disabled={selectedIds.size === 0 || isDeleting}
                             >
-                                <Trash2 className="mr-2 h-4 w-4" />
+                                <Trash2 className="mr-2 h-4 w-4 md:h-6 md:w-6" />
                                 {t.notebook?.deleteSelected || "删除选中"}
                             </Button>
                         </div>

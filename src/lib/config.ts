@@ -13,11 +13,19 @@ export interface OpenAIInstance {
     apiKey: string;
     baseUrl: string;
     model: string;
+    // 关闭推理模型的思考模式；undefined 表示由后端自动判定
+    // 详见 src/types/api.ts 的说明
+    disableThinking?: boolean;
 }
 
 export interface AppConfig {
     aiProvider: 'gemini' | 'openai' | 'azure';
     allowRegistration?: boolean;
+    // 抽奖功能配置（独立于错题，不与积分挂钩）
+    lottery?: {
+        enabled?: boolean;       // 总开关，默认 true
+        drawsPerDay?: number;    // 每人每天可抽次数；0 = 不限
+    };
     openai?: {
         instances?: OpenAIInstance[];
         activeInstanceId?: string;
@@ -97,6 +105,11 @@ const DEFAULT_CONFIG: AppConfig = {
             apiKey: process.env.OPENAI_API_KEY,
             baseUrl: process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
             model: process.env.OPENAI_MODEL || 'gpt-4o',
+            // 未显式配置时由后端按端点自动判定
+            // （端点清单来自环境变量 THINKING_CAPABLE_HOSTS，为空则不做判定）
+            disableThinking: process.env.OPENAI_DISABLE_THINKING
+                ? process.env.OPENAI_DISABLE_THINKING === 'true'
+                : undefined,
         }] : [],
         activeInstanceId: process.env.OPENAI_API_KEY ? 'env-default' : undefined,
     },
@@ -175,6 +188,8 @@ export function updateAppConfig(newConfig: Partial<AppConfig>) {
         azure: { ...currentConfig.azure, ...newConfig.azure },
         prompts: { ...currentConfig.prompts, ...newConfig.prompts },
         timeouts: { ...currentConfig.timeouts, ...newConfig.timeouts },
+        // 抽奖配置需要逐字段合并，否则只传 drawsPerDay 会把 enabled 冲掉
+        lottery: { ...currentConfig.lottery, ...newConfig.lottery },
     };
 
     try {

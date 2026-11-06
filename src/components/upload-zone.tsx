@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState, useEffect } from "react";
+import { useCallback, useState, useEffect, useRef } from "react";
 import { useDropzone } from "react-dropzone";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -48,7 +48,7 @@ export function UploadZone({ onImageSelect, isAnalyzing }: UploadZoneProps) {
         [onImageSelect]
     );
 
-    const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    const { getRootProps, isDragActive } = useDropzone({
         onDrop,
         accept: {
             "image/*": [".jpeg", ".jpg", ".png"],
@@ -56,6 +56,26 @@ export function UploadZone({ onImageSelect, isAnalyzing }: UploadZoneProps) {
         maxFiles: 1,
         disabled: isAnalyzing,
     });
+
+    // 点击上传用的真实文件输入框（铺满卡片，见下方 JSX 注释）
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) onImageSelect(file);
+        // 重置 value，否则连续选择同一文件不会再触发 change
+        e.target.value = "";
+    };
+
+    // 检测是否为触摸设备（移动端），用于显示「点击选择」提示
+    const [isTouchDevice, setIsTouchDevice] = useState(false);
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        setIsTouchDevice(
+            "ontouchstart" in window ||
+            (typeof navigator !== "undefined" && navigator.maxTouchPoints > 0)
+        );
+    }, []);
     // 检查是否支持屏幕截图
     const isScreenshotSupported = () => {
         return isClient &&
@@ -179,34 +199,79 @@ export function UploadZone({ onImageSelect, isAnalyzing }: UploadZoneProps) {
     };
     return (
         <div className="space-y-4">
-            <Card
-                {...getRootProps()}
-                className={`border-2 border-dashed cursor-pointer transition-colors hover:border-primary/50 ${isDragActive ? "border-primary bg-primary/5" : "border-muted-foreground/25"
-                    }`}
-            >
-                <CardContent className="flex flex-col items-center justify-center py-12 space-y-4 text-center min-h-[300px]">
-                    <input {...getInputProps()} />
-                    <div className="p-4 bg-muted rounded-full">
-                        {isAnalyzing ? (
-                            <Loader2 className="h-10 w-10 text-primary animate-spin" />
-                        ) : (
-                            <UploadCloud className="h-10 w-10 text-muted-foreground" />
-                        )}
-                    </div>
-                    <div className="space-y-1">
-                        <h3 className="font-semibold text-lg">
-                            {isAnalyzing ? t.app.analyzing : t.upload.analyze}
-                        </h3>
-                        <p className="text-sm text-muted-foreground">
-                            {isAnalyzing ? t.app.analyzing : t.app.dragDrop}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-2">
-                            {t.upload.support}
-                        </p>
-                    </div>
-                </CardContent>
-            </Card>
-            {/* 屏幕截图按钮 - 只在客户端渲染 */}
+            {/*
+              上传区域：
+              react-dropzone 只负责「拖拽」（桌面端），点击上传改由下面这个
+              覆盖式 <input type="file"> 承担。
+
+              为什么不用 getInputProps() 的隐藏 input：
+              它在 iOS Safari 上会呈现为 1px 的视觉隐藏元素，
+              点击卡片时程序化 .click() 可能被系统拦截，
+              导致「点了没反应」。这里改成铺满卡片、opacity-0 的真实 input，
+              用户点到的就是 input 本身，iOS 原生支持，最稳妥。
+            */}
+            {/*
+              注意：这里不能再加 [&_input[type=file]]:hidden 之类的容器级样式，
+              它会连下面这个「铺满卡片的可见 input」一起隐藏掉，
+              导致包围盒为 0、点击完全无效（已实测踩过这个坑）。
+            */}
+            <div {...getRootProps({ noClick: true })}>
+                <label
+                    htmlFor="upload-zone-file"
+                    className={`block w-full ${isAnalyzing ? "cursor-not-allowed" : "cursor-pointer"}`}
+                >
+                    <Card
+                        className={`relative overflow-hidden border-2 border-dashed transition-colors hover:border-primary/50 ${isDragActive ? "border-primary bg-primary/5" : "border-muted-foreground/25"
+                            }`}
+                    >
+                        {/*
+                          真实文件输入：铺满卡片、透明但可点击。
+                          用 opacity-0 而非 display:none —— 后者在 iOS Safari 上
+                          无法唤起文件选择器。
+                        */}
+                        <input
+                            id="upload-zone-file"
+                            ref={fileInputRef}
+                            type="file"
+                            accept="image/jpeg,image/png,image/*"
+                            className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
+                            disabled={isAnalyzing}
+                            onChange={handleFileChange}
+                        />
+                        <CardContent className="pointer-events-none flex min-h-[300px] flex-col items-center justify-center space-y-4 py-12 text-center">
+                            <div className="rounded-full bg-muted p-4">
+                                {isAnalyzing ? (
+                                    <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                                ) : (
+                                    <UploadCloud className="h-10 w-10 text-muted-foreground" />
+                                )}
+                            </div>
+                            <div className="space-y-1">
+                                <h3 className="text-lg font-semibold">
+                                    {isAnalyzing ? t.app.analyzing : t.upload.analyze}
+                                </h3>
+                                <p className="text-sm text-muted-foreground">
+                                    {isAnalyzing ? t.app.analyzing : t.app.dragDrop}
+                                </p>
+                                {/*
+                                  仅在翻译文件里确实提供了 tapToSelect 时才额外显示一行，
+                                  否则会与上一行的 dragDrop 文案完全重复（曾出现重复两遍的问题）。
+                                */}
+                                {isTouchDevice && (t.upload as Record<string, string>).tapToSelect && (
+                                    <p className="text-sm font-medium text-primary">
+                                        {(t.upload as Record<string, string>).tapToSelect}
+                                    </p>
+                                )}
+                                <p className="mt-2 text-xs text-muted-foreground">
+                                    {t.upload.support}
+                                </p>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </label>
+            </div>
+
+            {/* 屏幕截图按钮 - 只在支持 getDisplayMedia 的浏览器渲染（桌面端） */}
             {isScreenshotSupported() && (
                 <div className="flex flex-col items-center gap-2">
                     <Button
@@ -216,13 +281,13 @@ export function UploadZone({ onImageSelect, isAnalyzing }: UploadZoneProps) {
                         className="flex items-center gap-2"
                     >
                         {isScreenshotting ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <Loader2 className="h-4 w-4 md:h-6 md:w-6 animate-spin" />
                         ) : (
-                            <Monitor className="h-4 w-4" />
+                            <Monitor className="h-4 w-4 md:h-6 md:w-6" />
                         )}
                         {isScreenshotting ? t.common.pleaseWait : t.upload.screenshot}
                     </Button>
-                    <p className="text-xs text-muted-foreground text-center">
+                    <p className="text-center text-xs text-muted-foreground">
                         {t.upload.screenshotDesc}
                     </p>
                 </div>

@@ -75,7 +75,7 @@ export function Pagination({
                     disabled={!canGoPrev}
                     title={t.pagination?.first || "First page"}
                 >
-                    <ChevronsLeft className="h-4 w-4" />
+                    <ChevronsLeft className="h-4 w-4 md:h-6 md:w-6" />
                 </Button>
 
                 {/* 上一页 */}
@@ -87,7 +87,7 @@ export function Pagination({
                     disabled={!canGoPrev}
                     title={t.pagination?.prev || "Previous page"}
                 >
-                    <ChevronLeft className="h-4 w-4" />
+                    <ChevronLeft className="h-4 w-4 md:h-6 md:w-6" />
                 </Button>
 
                 {/* 页码 */}
@@ -125,7 +125,7 @@ export function Pagination({
                     disabled={!canGoNext}
                     title={t.pagination?.next || "Next page"}
                 >
-                    <ChevronRight className="h-4 w-4" />
+                    <ChevronRight className="h-4 w-4 md:h-6 md:w-6" />
                 </Button>
 
                 {/* 末页 */}
@@ -137,7 +137,7 @@ export function Pagination({
                     disabled={!canGoNext}
                     title={t.pagination?.last || "Last page"}
                 >
-                    <ChevronsRight className="h-4 w-4" />
+                    <ChevronsRight className="h-4 w-4 md:h-6 md:w-6" />
                 </Button>
             </div>
         </div>

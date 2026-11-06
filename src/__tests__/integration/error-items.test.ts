@@ -581,6 +581,31 @@ describe('/api/error-items', () => {
     });
 
     describe('PATCH /api/error-items/[id]/notes (更新笔记)', () => {
+        // 该接口现已加入越权防护：更新前会先确认错题属于当前用户。
+        // 因此默认让归属校验通过，个别用例再单独覆盖「不属于自己」的情况。
+        beforeEach(() => {
+            mocks.mockPrismaErrorItem.findFirst.mockResolvedValue({ id: 'error-item-1' });
+        });
+
+        it('应该拒绝修改他人的错题笔记（越权防护）', async () => {
+            // 归属查询返回 null，表示该错题不存在或不属于当前用户
+            mocks.mockPrismaErrorItem.findFirst.mockResolvedValue(null);
+
+            const request = new Request('http://localhost/api/error-items/someone-elses-item/notes', {
+                method: 'PATCH',
+                body: JSON.stringify({ userNotes: '恶意篡改' }),
+                headers: { 'Content-Type': 'application/json' },
+            });
+
+            const response = await PATCH_NOTES(request, {
+                params: Promise.resolve({ id: 'someone-elses-item' }),
+            });
+
+            expect(response.status).toBe(404);
+            // 关键：绝不能执行更新
+            expect(mocks.mockPrismaErrorItem.update).not.toHaveBeenCalled();
+        });
+
         it('应该成功更新用户笔记', async () => {
             const existingItem = {
                 id: 'error-item-1',

@@ -49,6 +49,36 @@ describe('/api/tags', () => {
     });
 
     describe('GET /api/tags/stats (标签统计)', () => {
+        // 该接口现已要求登录，且只统计当前用户的数据
+        // （原实现无需登录且无用户过滤，会泄露全站标签）。
+        beforeEach(() => {
+            mocks.mockGetServerSession.mockResolvedValue({
+                user: { email: 'user@example.com', name: 'Test User' },
+            });
+            mocks.mockPrismaUser.findUnique.mockResolvedValue({ id: 'user-123' });
+        });
+
+        it('应该拒绝未登录用户的请求', async () => {
+            mocks.mockGetServerSession.mockResolvedValue(null);
+
+            const response = await GET_STATS(new Request('http://localhost/api/tags/stats'));
+
+            expect(response.status).toBe(401);
+            expect(mocks.mockPrismaErrorItem.findMany).not.toHaveBeenCalled();
+        });
+
+        it('应该只统计当前用户的错题（按 userId 过滤）', async () => {
+            mocks.mockPrismaErrorItem.findMany.mockResolvedValue([]);
+
+            await GET_STATS(new Request('http://localhost/api/tags/stats'));
+
+            expect(mocks.mockPrismaErrorItem.findMany).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    where: { userId: 'user-123' },
+                })
+            );
+        });
+
         it('应该返回标签使用频率统计', async () => {
             const errorItems = [
                 { knowledgePoints: '["一元一次方程", "移项"]' },

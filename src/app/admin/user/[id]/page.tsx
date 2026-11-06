@@ -71,7 +71,7 @@ export default function AdminUserDetailPage() {
             {/* Header */}
             <div className="flex items-center gap-4">
                 <Button variant="ghost" size="sm" onClick={() => router.push("/admin")}>
-                    <ArrowLeft className="h-4 w-4 mr-1" />
+                    <ArrowLeft className="h-4 w-4 md:h-6 md:w-6 mr-1" />
                     {t.common?.back || "返回"}
                 </Button>
                 <div className="flex items-center gap-3">
@@ -95,28 +95,28 @@ export default function AdminUserDetailPage() {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <Card className="border-0 shadow-sm">
                     <CardContent className="p-4 text-center">
-                        <Layers className="h-5 w-5 text-purple-500 mx-auto mb-1" />
+                        <Layers className="h-5 w-5 md:h-6 md:w-6 text-purple-500 mx-auto mb-1" />
                         <div className="text-2xl font-bold">{data.notebookCount}</div>
                         <div className="text-xs text-muted-foreground">{t.admin?.dashboard?.notebooks || "错题本"}</div>
                     </CardContent>
                 </Card>
                 <Card className="border-0 shadow-sm">
                     <CardContent className="p-4 text-center">
-                        <BookOpen className="h-5 w-5 text-red-500 mx-auto mb-1" />
+                        <BookOpen className="h-5 w-5 md:h-6 md:w-6 text-red-500 mx-auto mb-1" />
                         <div className="text-2xl font-bold">{data.errorCount}</div>
                         <div className="text-xs text-muted-foreground">{t.admin?.dashboard?.errors || "错题"}</div>
                     </CardContent>
                 </Card>
                 <Card className="border-0 shadow-sm">
                     <CardContent className="p-4 text-center">
-                        <PenTool className="h-5 w-5 text-green-500 mx-auto mb-1" />
+                        <PenTool className="h-5 w-5 md:h-6 md:w-6 text-green-500 mx-auto mb-1" />
                         <div className="text-2xl font-bold">{data.practiceCount}</div>
                         <div className="text-xs text-muted-foreground">{t.admin?.dashboard?.practice || "练习"}</div>
                     </CardContent>
                 </Card>
                 <Card className="border-0 shadow-sm">
                     <CardContent className="p-4 text-center">
-                        <Calendar className="h-5 w-5 text-blue-500 mx-auto mb-1" />
+                        <Calendar className="h-5 w-5 md:h-6 md:w-6 text-blue-500 mx-auto mb-1" />
                         <div className="text-2xl font-bold">{data.recent7DaysCount}</div>
                         <div className="text-xs text-muted-foreground">{t.admin?.dashboard?.recent7Days || "近7天录入"}</div>
                     </CardContent>
@@ -129,7 +129,7 @@ export default function AdminUserDetailPage() {
                 <Card className="border-0 shadow-sm">
                     <CardHeader className="pb-2">
                         <CardTitle className="text-base flex items-center gap-2">
-                            <Layers className="h-4 w-4 text-purple-500" />
+                            <Layers className="h-4 w-4 md:h-6 md:w-6 text-purple-500" />
                             {t.admin?.dashboard?.userNotebooks || "错题本列表"}
                         </CardTitle>
                     </CardHeader>
@@ -155,7 +155,7 @@ export default function AdminUserDetailPage() {
                 <Card className="border-0 shadow-sm">
                     <CardHeader className="pb-2">
                         <CardTitle className="text-base flex items-center gap-2">
-                            <CheckCircle className="h-4 w-4 text-green-500" />
+                            <CheckCircle className="h-4 w-4 md:h-6 md:w-6 text-green-500" />
                             {t.admin?.dashboard?.masteryDistribution || "掌握度分布"}
                         </CardTitle>
                     </CardHeader>
@@ -172,7 +172,7 @@ export default function AdminUserDetailPage() {
                                         <div key={item.key} className="space-y-1">
                                             <div className="flex justify-between text-sm items-center">
                                                 <span className="flex items-center gap-1.5 font-medium">
-                                                    <item.icon className={`h-4 w-4 ${item.color}`} />
+                                                    <item.icon className={`h-4 w-4 md:h-6 md:w-6 ${item.color}`} />
                                                     {item.label}
                                                 </span>
                                                 <span className="text-muted-foreground">{item.count} ({pct}%)</span>
@@ -197,7 +197,7 @@ export default function AdminUserDetailPage() {
                 <Card className="border-0 shadow-sm">
                     <CardHeader className="pb-2">
                         <CardTitle className="text-base flex items-center gap-2">
-                            <Tag className="h-4 w-4 text-blue-500" />
+                            <Tag className="h-4 w-4 md:h-6 md:w-6 text-blue-500" />
                             {t.admin?.dashboard?.subjectDistribution || "学科错题分布"}
                         </CardTitle>
                     </CardHeader>
@@ -218,7 +218,7 @@ export default function AdminUserDetailPage() {
             <Card className="border-0 shadow-sm">
                 <CardHeader className="pb-2">
                     <CardTitle className="text-base flex items-center gap-2">
-                        <Eye className="h-4 w-4 text-orange-500" />
+                        <Eye className="h-4 w-4 md:h-6 md:w-6 text-orange-500" />
                         {t.admin?.dashboard?.recentErrors || "最近录入的错题"}
                     </CardTitle>
                 </CardHeader>

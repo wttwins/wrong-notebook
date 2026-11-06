@@ -12,6 +12,9 @@ const mocks = vi.hoisted(() => ({
     mockPrismaPracticeRecord: {
         create: vi.fn(),
     },
+    mockPrismaUser: {
+        findUnique: vi.fn(),
+    },
     mockAIService: {
         generateSimilarQuestion: vi.fn(),
     },
@@ -30,6 +33,9 @@ vi.mock('@/lib/prisma', () => ({
     prisma: {
         errorItem: mocks.mockPrismaErrorItem,
         practiceRecord: mocks.mockPrismaPracticeRecord,
+        // /api/practice/generate 现在会先按会话邮箱查出当前用户，
+        // 再校验错题归属，因此需要 user 模型。
+        user: mocks.mockPrismaUser,
     },
 }));
 
@@ -56,11 +62,14 @@ describe('/api/practice', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         vi.mocked(getServerSession).mockResolvedValue(mocks.mockSession);
+        // 会话邮箱 → 用户记录，供归属校验使用
+        mocks.mockPrismaUser.findUnique.mockResolvedValue({ id: 'user-123' });
     });
 
     describe('POST /api/practice/generate (生成类似题目)', () => {
         const mockErrorItem = {
             id: 'error-item-1',
+            userId: 'user-123',
             questionText: '求解 x + 2 = 5',
             knowledgePoints: '["一元一次方程", "移项"]',
             subject: { id: 'math', name: '数学' },

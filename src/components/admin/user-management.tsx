@@ -112,7 +112,7 @@ export function UserManagement() {
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
-                    {savingRegistration && <Loader2 className="h-4 w-4 animate-spin" />}
+                    {savingRegistration && <Loader2 className="h-4 w-4 md:h-6 md:w-6 animate-spin" />}
                     <Switch
                         checked={allowRegistration}
                         onCheckedChange={handleToggleRegistration}
@@ -154,9 +154,9 @@ export function UserManagement() {
                                     disabled={user.id === (session?.user as any).id}
                                 >
                                     {user.isActive ? (
-                                        <Ban className="h-4 w-4 text-orange-500" />
+                                        <Ban className="h-4 w-4 md:h-6 md:w-6 text-orange-500" />
                                     ) : (
-                                        <CheckCircle className="h-4 w-4 text-green-500" />
+                                        <CheckCircle className="h-4 w-4 md:h-6 md:w-6 text-green-500" />
                                     )}
                                 </Button>
                                 <Button
@@ -165,7 +165,7 @@ export function UserManagement() {
                                     onClick={() => handleDelete(user)}
                                     disabled={user.id === (session?.user as any).id}
                                 >
-                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                    <Trash2 className="h-4 w-4 md:h-6 md:w-6 text-destructive" />
                                 </Button>
                             </div>
                         </div>
@@ -223,9 +223,9 @@ export function UserManagement() {
                                         title={user.isActive ? t.admin.disable : t.admin.enable}
                                     >
                                         {user.isActive ? (
-                                            <Ban className="h-4 w-4 text-orange-500" />
+                                            <Ban className="h-4 w-4 md:h-6 md:w-6 text-orange-500" />
                                         ) : (
-                                            <CheckCircle className="h-4 w-4 text-green-500" />
+                                            <CheckCircle className="h-4 w-4 md:h-6 md:w-6 text-green-500" />
                                         )}
                                     </Button>
                                     <Button
@@ -235,7 +235,7 @@ export function UserManagement() {
                                         disabled={user.id === (session?.user as any).id}
                                         title={t.admin.delete}
                                     >
-                                        <Trash2 className="h-4 w-4 text-destructive" />
+                                        <Trash2 className="h-4 w-4 md:h-6 md:w-6 text-destructive" />
                                     </Button>
                                 </TableCell>
                             </TableRow>

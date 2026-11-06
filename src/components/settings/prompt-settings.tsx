@@ -64,7 +64,7 @@ export function PromptSettings({ config, onUpdate }: PromptSettingsProps) {
 
     const WarningBox = () => (
         <div className="bg-amber-50 border border-amber-200 rounded-md p-3 flex items-start gap-3 text-amber-900 text-sm mb-4">
-            <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600" />
+            <AlertTriangle className="h-5 w-5 md:h-6 md:w-6 shrink-0 text-amber-600" />
             <div className="space-y-1">
                 <p className="font-medium">
                     {t.settings?.prompts?.caution || "Modify with Caution"}
@@ -104,7 +104,7 @@ export function PromptSettings({ config, onUpdate }: PromptSettingsProps) {
 
                         <div className="space-y-2 border rounded-md p-3 bg-background">
                             <h4 className="text-xs font-medium flex items-center gap-1.5 mb-2">
-                                <Info className="h-3.5 w-3.5" />
+                                <Info className="h-3.5 w-3.5 md:h-6 md:w-6" />
                                 {t.settings?.prompts?.variables || "Available Variables"}
                             </h4>
                             <div className="space-y-1.5">
@@ -148,7 +148,7 @@ export function PromptSettings({ config, onUpdate }: PromptSettingsProps) {
 
                         <div className="space-y-2 border rounded-md p-3 bg-background">
                             <h4 className="text-xs font-medium flex items-center gap-1.5 mb-2">
-                                <Info className="h-3.5 w-3.5" />
+                                <Info className="h-3.5 w-3.5 md:h-6 md:w-6" />
                                 {t.settings?.prompts?.variables || "Available Variables"}
                             </h4>
                             <div className="space-y-1.5">

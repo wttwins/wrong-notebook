@@ -139,7 +139,7 @@ export function DirectTextEditor({ onSubmit, defaultNotebookId, defaultNotebookN
                 {/* Header */}
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 text-muted-foreground">
-                        <PenLine className="h-5 w-5" />
+                        <PenLine className="h-5 w-5 md:h-6 md:w-6" />
                         <span className="text-sm font-medium">
                             直接录入错题内容（支持 Markdown + LaTeX）
                         </span>
@@ -151,7 +151,7 @@ export function DirectTextEditor({ onSubmit, defaultNotebookId, defaultNotebookN
                         disabled={isSaving}
                         className="text-muted-foreground hover:text-destructive"
                     >
-                        <RotateCcw className="h-4 w-4 mr-1" />
+                        <RotateCcw className="h-4 w-4 md:h-6 md:w-6 mr-1" />
                         重置
                     </Button>
                 </div>
@@ -209,12 +209,12 @@ export function DirectTextEditor({ onSubmit, defaultNotebookId, defaultNotebookN
                             >
                                 {previewField === field.key ? (
                                     <>
-                                        <Edit3 className="h-3 w-3 mr-1" />
+                                        <Edit3 className="h-3 w-3 md:h-5 md:w-5 mr-1" />
                                         编辑
                                     </>
                                 ) : (
                                     <>
-                                        <Eye className="h-3 w-3 mr-1" />
+                                        <Eye className="h-3 w-3 md:h-5 md:w-5 mr-1" />
                                         预览
                                     </>
                                 )}
@@ -283,12 +283,12 @@ export function DirectTextEditor({ onSubmit, defaultNotebookId, defaultNotebookN
                     >
                         {isSaving ? (
                             <>
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                <Loader2 className="mr-2 h-4 w-4 md:h-6 md:w-6 animate-spin" />
                                 保存中...
                             </>
                         ) : (
                             <>
-                                <Save className="mr-2 h-4 w-4" />
+                                <Save className="mr-2 h-4 w-4 md:h-6 md:w-6" />
                                 直接保存
                             </>
                         )}

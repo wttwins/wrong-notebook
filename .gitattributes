@@ -1,0 +1,16 @@
+# 强制 Shell 脚本使用 LF 换行
+#
+# 背景：本项目在 Windows 上开发，编辑器默认写出 CRLF。
+# 对于 .sh 文件这会导致致命问题：
+#   shebang 变成 "#!/bin/sh\r"，Linux 会去找名为 "/bin/sh\r" 的解释器，
+#   报错信息是 "exec ./docker-entrypoint.sh: no such file or directory"，
+#   极具误导性 —— 文件明明存在，报错却说找不到。
+#
+# 因此这里强制 shell 脚本以 LF 存入仓库，避免再次踩坑。
+
+*.sh text eol=lf
+docker-entrypoint.sh text eol=lf
+
+# Docker 相关文件也建议 LF（虽然 Docker 通常能容错）
+Dockerfile text eol=lf
+*.dockerignore text eol=lf

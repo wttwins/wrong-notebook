@@ -222,7 +222,7 @@ export default function TagsPage() {
                         className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 rounded px-2 py-1 -mx-2"
                         onClick={() => toggleNode(node.id)}
                     >
-                        {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        {isExpanded ? <ChevronDown className="h-4 w-4 md:h-6 md:w-6" /> : <ChevronRight className="h-4 w-4 md:h-6 md:w-6" />}
                         <span className="font-medium text-sm">{node.name}</span>
                         <span className="text-xs text-muted-foreground">({visibleChildren.length})</span>
                     </div>
@@ -240,7 +240,7 @@ export default function TagsPage() {
                     className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 rounded px-2 py-1 -mx-2"
                     onClick={() => toggleNode(node.id)}
                 >
-                    {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                    {isExpanded ? <ChevronDown className="h-4 w-4 md:h-6 md:w-6" /> : <ChevronRight className="h-4 w-4 md:h-6 md:w-6" />}
                     <span className="font-medium text-sm">{node.name}</span>
                     <span className="text-xs text-muted-foreground">({visibleChildren.length})</span>
                 </div>
@@ -264,14 +264,19 @@ export default function TagsPage() {
     // 渲染标准标签库
     const renderStandardTags = () => {
         return (
-            <>
+            // 平板/桌面用多列网格，充分利用横向空间；
+            // 展开的学科卡片自动跨列，避免单列被拉得过宽而大量留白。
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 {SUBJECTS.map(({ key, name }) => {
                     const subjectName = (t.tags?.subjects as any)?.[key] || name;
                     const isExpanded = expandedNodes[`subject-${key}`];
                     const tags = tagsBySubject[key];
 
                     return (
-                        <Card key={key} className="mb-4">
+                        <Card
+                            key={key}
+                            className={`mb-0 ${isExpanded ? "md:col-span-2 xl:col-span-3" : ""}`}
+                        >
                             <CardHeader
                                 className="cursor-pointer hover:bg-muted/50 transition-colors flex flex-row items-center justify-between py-4"
                                 onClick={() => {
@@ -280,7 +285,7 @@ export default function TagsPage() {
                                 }}
                             >
                                 <CardTitle className="text-lg flex items-center gap-2">
-                                    {isExpanded ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
+                                    {isExpanded ? <ChevronDown className="h-5 w-5 md:h-6 md:w-6" /> : <ChevronRight className="h-5 w-5 md:h-6 md:w-6" />}
                                     {subjectName}
                                 </CardTitle>
                                 <span className="text-sm text-muted-foreground">
@@ -291,7 +296,7 @@ export default function TagsPage() {
                                 <CardContent className="space-y-4 pt-0">
                                     {tags === null ? (
                                         <div className="text-center py-4 text-muted-foreground">
-                                            <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" />
+                                            <Loader2 className="h-5 w-5 md:h-6 md:w-6 animate-spin mx-auto mb-2" />
                                             Loading...
                                         </div>
                                     ) : tags.filter(t => t.isSystem).length === 0 ? (
@@ -306,7 +311,7 @@ export default function TagsPage() {
                         </Card>
                     );
                 })}
-            </>
+            </div>
         );
     };
 
@@ -353,7 +358,7 @@ export default function TagsPage() {
                                 className="flex-1 min-w-[200px]"
                             />
                             <Button onClick={handleAddCustomTag} disabled={submitting}>
-                                {submitting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Plus className="h-4 w-4 mr-1" />}
+                                {submitting ? <Loader2 className="h-4 w-4 md:h-6 md:w-6 mr-1 animate-spin" /> : <Plus className="h-4 w-4 md:h-6 md:w-6 mr-1" />}
                                 {t.tags?.custom?.add || "Add"}
                             </Button>
                         </div>
@@ -408,7 +413,7 @@ export default function TagsPage() {
                                                             className="ml-2 hover:text-destructive transition-colors"
                                                             title={t.common?.delete || "Delete"}
                                                         >
-                                                            <Trash2 className="h-3 w-3" />
+                                                            <Trash2 className="h-3 w-3 md:h-5 md:w-5" />
                                                         </button>
                                                     </Badge>
                                                 ))}
@@ -431,7 +436,7 @@ export default function TagsPage() {
         const maxCount = stats[0]?.count || 1;
         return (
             <Card>
-                <CardHeader><CardTitle className="flex items-center gap-2"><TrendingUp className="h-5 w-5" />{t.tags?.stats?.frequency || "Tag Usage Frequency (Top 20)"}</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="flex items-center gap-2"><TrendingUp className="h-5 w-5 md:h-6 md:w-6" />{t.tags?.stats?.frequency || "Tag Usage Frequency (Top 20)"}</CardTitle></CardHeader>
                 <CardContent className="space-y-3">
                     {stats.slice(0, 20).map((stat) => {
                         const percentage = (stat.count / maxCount) * 100;
@@ -465,7 +470,7 @@ export default function TagsPage() {
                 <div className="ml-auto flex items-center">
                     <Link href="/">
                         <Button variant="ghost" size="icon">
-                            <House className="h-5 w-5" />
+                            <House className="h-5 w-5 md:h-6 md:w-6" />
                         </Button>
                     </Link>
                 </div>

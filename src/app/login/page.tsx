@@ -51,7 +51,14 @@ export default function LoginPage() {
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <form onSubmit={handleSubmit} className="space-y-4">
+                    {/*
+                      method="post" 是安全兜底：
+                      若浏览器未能完成 hydration（如 iPad Safari 上出现过的
+                      「点击毫无反应」），表单会退化成原生提交。默认的 GET 会把
+                      password 明文拼进地址栏和浏览器历史（曾实际发生）。
+                      用 POST 后最坏情况只是请求被服务端拒绝，不会泄露凭据。
+                    */}
+                    <form onSubmit={handleSubmit} method="post" className="space-y-4">
                         <div className="space-y-2">
                             <label htmlFor="email" className="text-sm font-medium">
                                 {t.auth?.email || 'Email'}
@@ -60,6 +67,14 @@ export default function LoginPage() {
                                 id="email"
                                 name="email"
                                 type="email"
+                                // 以下属性让 iOS/Android 的密码管理器能正确识别这是「登录用户名」：
+                                // 缺少 autocomplete 时，Safari 往往不会弹出「存储密码」提示，
+                                // 也无法在下次登录时用面容/指纹自动填充。
+                                autoComplete="username"
+                                inputMode="email"
+                                autoCapitalize="none"
+                                autoCorrect="off"
+                                spellCheck={false}
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                                 required
@@ -73,6 +88,9 @@ export default function LoginPage() {
                                 id="password"
                                 name="password"
                                 type="password"
+                                // current-password = 已有密码（触发保存/自动填充）
+                                // 注册页用的是 new-password，二者不能混用
+                                autoComplete="current-password"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 required

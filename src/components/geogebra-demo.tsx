@@ -59,9 +59,91 @@ const API_PREFIXES = [
     "setvalue", "setfixed", "setbackgroundcolor",
 ];
 
+// 绘图命令但参数中包含字符串字面量（引号），无法走 evalCommand 的自由文本通道
+// （该通道出于安全会拒绝含引号的命令），因此用专用解析器处理。
+// 注意：这里只放行「构造函数」，不放行 Execute/SetValue 等可写入的 API。
+const LITERAL_COMMANDS = ["text"];
+
 function isApiCall(cmd: string): boolean {
     const l = cmd.toLowerCase().trim();
     return API_PREFIXES.some((p) => l.startsWith(p + "("));
+}
+
+function isLiteralCommand(cmd: string): boolean {
+    const l = cmd.toLowerCase().trim();
+    return LITERAL_COMMANDS.some((p) => l.startsWith(p + "("));
+}
+
+/**
+ * 去除字符串字面量后的剩余部分中是否含有危险字符。
+ * 用于拒绝 Text("x", (0,0)) <inject> 这类拼接注入。
+ */
+function hasUnsafeOutsideStrings(s: string): boolean {
+    let out = "";
+    let quote: string | null = null;
+    for (let i = 0; i < s.length; i++) {
+        const ch = s[i];
+        if (quote) {
+            if (ch === "\\") { i++; continue; }
+            if (ch === quote) quote = null;
+            continue;
+        }
+        if (ch === '"' || ch === "'") { quote = ch; continue; }
+        out += ch;
+    }
+    return /[<>]/.test(out);
+}
+
+/**
+ * 按顶层逗号切分参数，尊重括号与引号嵌套。
+ * 例：Text("AB = 5", (0.2, 2.3)) → ['"AB = 5"', '(0.2, 2.3)']
+ */
+function splitArgs(s: string): string[] {
+    const parts: string[] = [];
+    let depth = 0;
+    let quote: string | null = null;
+    let cur = "";
+    for (let i = 0; i < s.length; i++) {
+        const ch = s[i];
+        if (quote) {
+            cur += ch;
+            if (ch === "\\") { cur += s[++i] ?? ""; continue; }
+            if (ch === quote) quote = null;
+            continue;
+        }
+        if (ch === '"' || ch === "'") { quote = ch; cur += ch; continue; }
+        if (ch === "(" || ch === "[" || ch === "{") depth++;
+        else if (ch === ")" || ch === "]" || ch === "}") depth--;
+        if (ch === "," && depth === 0) { parts.push(cur.trim()); cur = ""; continue; }
+        cur += ch;
+    }
+    if (cur.trim()) parts.push(cur.trim());
+    return parts;
+}
+
+/**
+ * 宽松解析单个参数：引号 → 字符串；纯数字 → 数字；括号元组 → 数组；
+ * 其余（对象名、布尔）原样作为字符串，由 GeoGebra 自行解释。
+ */
+function parseArgValue(raw: string): unknown {
+    const t = raw.trim();
+    if (t.length >= 2 &&
+        ((t.startsWith('"') && t.endsWith('"')) || (t.startsWith("'") && t.endsWith("'")))) {
+        return t.slice(1, -1).replace(/\\(["'\\])/g, "$1");
+    }
+    if (/^-?\d+(\.\d+)?$/.test(t)) return Number(t);
+    if (t === "true" || t === "false") return t === "true";
+    if (t.startsWith("(") && t.endsWith(")")) {
+        return splitArgs(t.slice(1, -1)).map(parseArgValue);
+    }
+    return t;
+}
+
+function parseLiteralCommand(cmd: string): { m: string; a: unknown[] } | null {
+    const m = cmd.trim().match(/^(\w+)\(([\s\S]*)\)$/);
+    if (!m) return null;
+    if (hasUnsafeOutsideStrings(m[2])) return null;
+    return { m: m[1], a: splitArgs(m[2]).map(parseArgValue) };
 }
 
 function parseApiArgs(cmd: string): { m: string; a: unknown[] } | null {
@@ -100,11 +182,24 @@ function parseApiArgs(cmd: string): { m: string; a: unknown[] } | null {
 }
 
 function runCommands(api: any, cmds: string[]) {
+    // Text() 等含字符串字面量的命令需要唯一标签，避免多个文本对象互相覆盖
+    let labelSeq = 0;
+
     for (const cmd of cmds) {
         try {
             if (isApiCall(cmd)) {
                 const p = parseApiArgs(cmd);
                 if (p && typeof api[p.m] === 'function') api[p.m](...p.a);
+            } else if (isLiteralCommand(cmd)) {
+                // Text("说明", (x, y)) 这类命令含有引号，会被下面的安全过滤拒绝，
+                // 因此改走这里：校验后分配唯一标签，再交给 evalCommand 执行。
+                const p = parseLiteralCommand(cmd);
+                if (!p) {
+                    console.warn(`[GGB] Blocked unsafe command: ${cmd.substring(0, 60)}`);
+                    continue;
+                }
+                const label = `ggbText${labelSeq++}`;
+                api.evalCommand(`${label} = ${cmd.trim()}`);
             } else {
                 // Basic command validation: only allow safe characters
                 const sanitized = cmd.trim();
@@ -263,28 +358,28 @@ export function GeogebraDemo({
                     <span className="text-xs font-medium text-muted-foreground">
                         GeoGebra 动态演示
                     </span>
-                    {loading && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+                    {loading && <Loader2 className="h-3 w-3 md:h-5 md:w-5 animate-spin text-muted-foreground" />}
                 </div>
                 <div className="flex items-center gap-1">
                     {onRegenerate && (
                         <Button variant="ghost" size="sm" className="h-7 px-2 text-xs gap-1"
                             onClick={handleRegenerate} title="重新生成" disabled={regenerating || loading}>
                             {regenerating
-                                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                : <RefreshCw className="h-3.5 w-3.5" />}
+                                ? <Loader2 className="h-3.5 w-3.5 md:h-6 md:w-6 animate-spin" />
+                                : <RefreshCw className="h-3.5 w-3.5 md:h-6 md:w-6" />}
                             <span>重新生成</span>
                         </Button>
                     )}
                     <Button variant="ghost" size="sm" className="h-7 w-7 p-0"
                         onClick={handleReset} title="重置" disabled={loading}>
-                        <RotateCcw className="h-3.5 w-3.5" />
+                        <RotateCcw className="h-3.5 w-3.5 md:h-6 md:w-6" />
                     </Button>
                     <Button variant="ghost" size="sm" className="h-7 w-7 p-0"
                         onClick={() => setExpanded((v) => !v)}
                         title={expanded ? "缩小" : "放大"}>
                         {expanded
-                            ? <Minimize2 className="h-3.5 w-3.5" />
-                            : <Maximize2 className="h-3.5 w-3.5" />}
+                            ? <Minimize2 className="h-3.5 w-3.5 md:h-6 md:w-6" />
+                            : <Maximize2 className="h-3.5 w-3.5 md:h-6 md:w-6" />}
                     </Button>
                 </div>
             </div>

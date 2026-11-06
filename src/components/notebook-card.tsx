@@ -24,7 +24,7 @@ export function NotebookCard({ id, name, errorCount, onClick, onRename, onDelete
             <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
                     <div className="flex items-center gap-2">
-                        <BookOpen className="h-5 w-5 text-primary" />
+                        <BookOpen className="h-5 w-5 md:h-6 md:w-6 text-primary" />
                         <CardTitle className="text-lg truncate">{name}</CardTitle>
                     </div>
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
@@ -38,7 +38,7 @@ export function NotebookCard({ id, name, errorCount, onClick, onRename, onDelete
                                     onRename();
                                 }}
                             >
-                                <Pencil className="h-4 w-4" />
+                                <Pencil className="h-4 w-4 md:h-6 md:w-6" />
                             </Button>
                         )}
                         {onDelete && (
@@ -51,7 +51,7 @@ export function NotebookCard({ id, name, errorCount, onClick, onRename, onDelete
                                     onDelete(id);
                                 }}
                             >
-                                <Trash2 className={`h-4 w-4 ${errorCount > 0 ? "text-muted-foreground" : "text-destructive"}`} />
+                                <Trash2 className={`h-4 w-4 md:h-6 md:w-6 ${errorCount > 0 ? "text-muted-foreground" : "text-destructive"}`} />
                             </Button>
                         )}
                     </div>

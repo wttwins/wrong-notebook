@@ -18,12 +18,29 @@ export async function POST(req: Request) {
     try {
         const { errorItemId, language, difficulty } = await req.json();
 
+        // 越权（IDOR）防护：必须限定在本人错题范围内。
+        // 原实现按 id 直接查询，任何登录用户都能借他人错题生成同类题，
+        // 从而把别人的题干内容间接读出来。
+        const currentUser = session.user.email
+            ? await prisma.user.findUnique({
+                where: { email: session.user.email },
+                select: { id: true },
+            })
+            : null;
+
+        if (!currentUser) {
+            return unauthorized("Authentication required");
+        }
+
         const errorItemWithSubject = await prisma.errorItem.findUnique({
             where: { id: errorItemId },
             include: { subject: true }
         });
 
-        if (!errorItemWithSubject) {
+        // 越权（IDOR）防护：确认该错题属于当前用户。
+        // 原实现只按 id 查询，任何登录用户都能借他人错题生成同类题，
+        // 从而把别人的题干内容间接读出来。
+        if (!errorItemWithSubject || errorItemWithSubject.userId !== currentUser.id) {
             return notFound("Item not found");
         }
 

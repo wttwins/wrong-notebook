@@ -17,8 +17,20 @@ export const authOptions: NextAuthOptions = {
     pages: {
         signIn: "/login",
     },
-    // Force using a single cookie name to avoid HTTP/HTTPS mismatches in proxy environments
-    // This allows running without NEXTAUTH_URL behind Cloudflare Tunnel
+    // 会话 Cookie 配置
+    //
+    // ⚠️ secure 必须与实际访问协议一致：
+    // Safari（尤其 iPadOS）会拒绝在 HTTPS 站点上存储【不带 Secure】的 Cookie，
+    // 表现为「登录看似成功，却立刻又跳回登录页」；Chrome/Edge/安卓会容忍，
+    // 因此该问题只在 Safari 上复现。
+    //
+    // 旧逻辑是 NODE_ENV==="production" && NEXTAUTH_URL.startsWith("https")，
+    // 而本项目常见组合是「dev 模式 + HTTPS 隧道」（NODE_ENV=development，
+    // NEXTAUTH_URL=http://localhost:3000），结果 secure 恒为 false —— 这正是根因。
+    //
+    // 现改为：只要 NEXTAUTH_URL 声明为 https，就启用 Secure。
+    // 注意【必须保持 Cookie 名不变】——因为 src/middleware.ts 用固定名读取会话，
+    // 若改用 useSecureCookies 的 __Secure- 前缀，会导致 middleware 读不到会话而登录失效。
     cookies: {
         sessionToken: {
             name: "next-auth.session-token",
@@ -26,9 +38,7 @@ export const authOptions: NextAuthOptions = {
                 httpOnly: true,
                 sameSite: "lax",
                 path: "/",
-                // Only use secure cookies if explicitly running on HTTPS (via NEXTAUTH_URL)
-                // This enables HTTP local IP access in Docker/Production if NEXTAUTH_URL is unset
-                secure: process.env.NODE_ENV === "production" && process.env.NEXTAUTH_URL?.startsWith("https"),
+                secure: !!process.env.NEXTAUTH_URL?.startsWith("https"),
             },
         },
     },
